@@ -43,6 +43,17 @@ def registrar_movimiento(data: MovimientoStockCreate, db: Session = Depends(get_
     return movimiento
 
 
+@router.get("/movimientos", response_model=list[MovimientoStockOut])
+def todos_movimientos(limit: int = 100, db: Session = Depends(get_db)):
+    """Todos los movimientos recientes, más nuevos primero."""
+    return (
+        db.query(MovimientoStock)
+        .order_by(MovimientoStock.fecha.desc())
+        .limit(limit)
+        .all()
+    )
+
+
 @router.get("/movimientos/{ingrediente_id}", response_model=list[MovimientoStockOut])
 def historial_movimientos(ingrediente_id: int, limit: int = 50, db: Session = Depends(get_db)):
     return (

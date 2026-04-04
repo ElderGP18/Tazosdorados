@@ -7,6 +7,9 @@ export const getStock = () =>
 export const getStockAlertas = () =>
   apiClient.get<Stock[]>('/stock/alertas')
 
+export const getAllMovimientos = (limit = 100) =>
+  apiClient.get<MovimientoStock[]>('/stock/movimientos', { params: { limit } })
+
 export const getMovimientos = (ingrediente_id: number, limit = 30) =>
   apiClient.get<MovimientoStock[]>(`/stock/movimientos/${ingrediente_id}`, { params: { limit } })
 

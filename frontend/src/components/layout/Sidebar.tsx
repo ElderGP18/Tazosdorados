@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ShoppingCart, Package, Layers, BookOpen,
   Archive, TrendingUp, ShoppingBag, AlertTriangle, BarChart2,
-  LogOut, ChevronLeft, ChevronRight, Flame,
+  LogOut, ChevronLeft, ChevronRight, Flame, ArrowLeftRight,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 
@@ -25,6 +25,7 @@ const navItems: NavItem[] = [
   { to: '/ingredientes',    icon: <Layers size={18} />,          label: 'Ingredientes', adminOnly: true },
   { to: '/recetas',         icon: <BookOpen size={18} />,        label: 'Recetas',      adminOnly: true },
   { to: '/stock',           icon: <Archive size={18} />,         label: 'Stock' },
+  { to: '/movimientos',     icon: <ArrowLeftRight size={18} />,  label: 'Movimientos' },
   { to: '/predicciones',    icon: <TrendingUp size={18} />,      label: 'Predicciones', adminOnly: true },
   { to: '/recomendaciones', icon: <ShoppingBag size={18} />,     label: 'Compras',      adminOnly: true },
   { to: '/merma',           icon: <AlertTriangle size={18} />,   label: 'Merma' },

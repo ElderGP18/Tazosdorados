@@ -242,7 +242,7 @@ export default function Ventas() {
                       className="form-input col-span-3"
                     />
                     <span className="col-span-1 text-xs text-gray-500 text-right">
-                      ${(item.cantidad * item.precio_unitario).toFixed(0)}
+                      Q{(item.cantidad * item.precio_unitario).toFixed(0)}
                     </span>
                     <button onClick={() => removeItem(idx)} className="col-span-1 text-red-400 hover:text-red-600 text-xs text-center">✕</button>
                   </div>

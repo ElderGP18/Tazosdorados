@@ -8,6 +8,7 @@ import Productos from './pages/productos/Productos'
 import Ingredientes from './pages/ingredientes/Ingredientes'
 import Recetas from './pages/recetas/Recetas'
 import Stock from './pages/stock/Stock'
+import MovimientosStock from './pages/stock/MovimientosStock'
 import Predicciones from './pages/predicciones/Predicciones'
 import Recomendaciones from './pages/recomendaciones/Recomendaciones'
 import Merma from './pages/merma/Merma'
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="/ingredientes"    element={<Ingredientes />} />
           <Route path="/recetas"         element={<Recetas />} />
           <Route path="/stock"           element={<Stock />} />
+          <Route path="/movimientos"     element={<MovimientosStock />} />
           <Route path="/predicciones"    element={<Predicciones />} />
           <Route path="/recomendaciones" element={<Recomendaciones />} />
           <Route path="/merma"           element={<Merma />} />
