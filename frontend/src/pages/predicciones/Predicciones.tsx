@@ -50,7 +50,7 @@ export default function Predicciones() {
   }
 
   const chartData7 = semana.map((d) => ({
-    fecha: formatDate(d.fecha, 'EEE dd'),
+    fecha: new Intl.DateTimeFormat('es-GT', { timeZone: 'America/Guatemala', weekday: 'short', day: '2-digit' }).format(new Date(d.fecha + 'T12:00:00')),
     unidades: d.total_unidades,
   }))
 

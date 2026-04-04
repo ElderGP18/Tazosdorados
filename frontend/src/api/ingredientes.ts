@@ -20,5 +20,8 @@ export const getRecetasPorProducto = (producto_id: number) =>
 export const createRecetaDetalle = (data: { producto_id: number; ingrediente_id: number; cantidad: number }) =>
   apiClient.post<RecetaDetalle>('/recetas', data)
 
+export const updateRecetaDetalle = (id: number, cantidad: number) =>
+  apiClient.patch(`/recetas/${id}`, { cantidad })
+
 export const deleteRecetaDetalle = (id: number) =>
   apiClient.delete(`/recetas/${id}`)

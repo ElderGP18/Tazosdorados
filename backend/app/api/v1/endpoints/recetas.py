@@ -47,6 +47,18 @@ def crear_receta(data: RecetaCreate, db: Session = Depends(get_db)):
     return rec
 
 
+@router.patch("/{receta_id}", response_model=RecetaOut)
+def actualizar_receta(receta_id: int, data: dict, db: Session = Depends(get_db)):
+    rec = db.query(RecetaDetalle).filter(RecetaDetalle.id == receta_id).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="No encontrado")
+    if "cantidad" in data:
+        rec.cantidad = Decimal(str(data["cantidad"]))
+    db.commit()
+    db.refresh(rec)
+    return rec
+
+
 @router.delete("/{receta_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar_receta(receta_id: int, db: Session = Depends(get_db)):
     rec = db.query(RecetaDetalle).filter(RecetaDetalle.id == receta_id).first()
