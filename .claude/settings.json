@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import bcrypt; h=b''\\\\x242b\\\\x2412\\\\x24F0SdsG2cDDmuIpEh/aSJSOwGzQM.VEkSk4bJx5/Qw1l.ZWZuwDvMy''; print\\(bcrypt.checkpw\\(''Admin1234!''.encode\\(\\), h\\)\\)\")",
+      "Bash(python -c \"import bcrypt; h=''$2b$12$F0SdsG2cDDmuIpEh/aSJSOwGzQM.VEkSk4bJx5/Qw1l.ZWZuwDvMy''; print\\(bcrypt.checkpw\\(b''Admin1234!'', h.encode\\(\\)\\)\\)\")"
+    ]
+  }
+}
