@@ -8,8 +8,9 @@ pymysql==1.1.1
 cryptography==43.0.3
 
 # Configuración
-pydantic==2.10.3
-pydantic-settings==2.6.1
+pydantic==2.11.3
+pydantic-core==2.33.1
+pydantic-settings==2.8.1
 email-validator==2.2.0
 python-dotenv==1.0.1
 
