@@ -143,7 +143,7 @@ export default function Ingredientes() {
               </select>
             </div>
             <div>
-              <label className="form-label">Costo unitario (MXN)</label>
+              <label className="form-label">Costo unitario (GTQ)</label>
               <input type="number" step="0.01" min="0" value={form.costo_unitario} onChange={(e) => setForm({ ...form, costo_unitario: e.target.value })} className="form-input" placeholder="0.00" />
             </div>
           </div>

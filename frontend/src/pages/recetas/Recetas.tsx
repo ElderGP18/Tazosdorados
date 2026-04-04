@@ -120,7 +120,7 @@ export default function Recetas() {
                   {expanded.has(producto.id) ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronRight size={16} className="text-gray-400" />}
                   <div>
                     <p className="font-medium text-gray-900">{producto.nombre}</p>
-                    <p className="text-xs text-gray-400">${Number(producto.precio).toFixed(2)}</p>
+                    <p className="text-xs text-gray-400">Q {Number(producto.precio).toFixed(2)}</p>
                   </div>
                 </div>
                 <button

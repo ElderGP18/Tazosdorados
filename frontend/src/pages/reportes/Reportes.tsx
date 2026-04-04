@@ -122,7 +122,7 @@ export default function Reportes() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="fecha" tick={{ fontSize: 11 }} interval={dias > 30 ? 6 : dias > 7 ? 3 : 0} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `Q${v}`} />
                 <Tooltip formatter={(v: number) => formatCurrency(v)} />
                 <Area type="monotone" dataKey="total" stroke="#f59e0b" strokeWidth={2} fill="url(#colorTotal)" name="Ventas" />
               </AreaChart>

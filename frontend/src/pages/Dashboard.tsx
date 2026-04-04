@@ -117,7 +117,7 @@ export default function Dashboard() {
               <BarChart data={ultimos7} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="dia" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${v}`} />
+                <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `Q${v}`} />
                 <Tooltip formatter={(v: number) => formatCurrency(v)} />
                 <Bar dataKey="total" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Ventas" />
               </BarChart>

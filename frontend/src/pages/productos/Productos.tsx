@@ -165,7 +165,7 @@ export default function Productos() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="form-label">Precio (MXN) *</label>
+              <label className="form-label">Precio (GTQ) *</label>
               <input type="number" step="0.01" min="0" value={form.precio} onChange={(e) => setForm({ ...form, precio: e.target.value })} className="form-input" placeholder="0.00" />
             </div>
             <div>

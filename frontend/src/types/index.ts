@@ -201,8 +201,8 @@ export interface RecomendacionesCompraResponse {
   recomendaciones: RecomendacionCompra[]
 }
 
-// ── Riesgo de merma (backend) ─────────────────────────
-export interface ItemRiesgoMerma {
+// ── Merma / frescura (backend) ────────────────────────
+export interface ItemMermaFrescura {
   ingrediente_id: number
   nombre: string
   unidad_medida: string
@@ -212,9 +212,9 @@ export interface ItemRiesgoMerma {
   dias_en_stock: number
   dias_restantes: number
   porcentaje_restante: number
-  riesgo: 'vencido' | 'alto' | 'medio'
+  estado: 'ok' | 'medio' | 'alto' | 'vencido'
 }
 
 export interface RiesgoMermaResponse {
-  ingredientes_en_riesgo: ItemRiesgoMerma[]
+  ingredientes: ItemMermaFrescura[]
 }
