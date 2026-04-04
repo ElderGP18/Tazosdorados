@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Plus, Search, ChevronDown, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { format, subDays, startOfWeek, startOfMonth } from 'date-fns'
+import { subDays, startOfWeek, startOfMonth } from 'date-fns'
+import { today as gtToday, toDateInput } from '../../utils/format'
 import { getVentas, createVenta } from '../../api/ventas'
 import { getProductos } from '../../api/productos'
 import { verificarStockVenta, type AdvertenciaStock } from '../../api/stock'
@@ -24,8 +25,8 @@ export default function Ventas() {
   const [saving, setSaving] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [filtro, setFiltro] = useState<Filtro>('hoy')
-  const [fechaDesde, setFechaDesde] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [fechaHasta, setFechaHasta] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [fechaDesde, setFechaDesde] = useState(gtToday())
+  const [fechaHasta, setFechaHasta] = useState(gtToday())
   const [detailOpen, setDetailOpen] = useState<Venta | null>(null)
 
   // Form state
@@ -50,16 +51,16 @@ export default function Ventas() {
   }, [])
 
   useEffect(() => {
-    const today = format(new Date(), 'yyyy-MM-dd')
+    const today = gtToday()
     if (filtro === 'hoy') {
       setFechaDesde(today); setFechaHasta(today)
       fetchVentas(today, today)
     } else if (filtro === 'semana') {
-      const desde = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
+      const desde = toDateInput(startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString())
       setFechaDesde(desde); setFechaHasta(today)
       fetchVentas(desde, today)
     } else if (filtro === 'mes') {
-      const desde = format(startOfMonth(new Date()), 'yyyy-MM-dd')
+      const desde = toDateInput(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
       setFechaDesde(desde); setFechaHasta(today)
       fetchVentas(desde, today)
     }

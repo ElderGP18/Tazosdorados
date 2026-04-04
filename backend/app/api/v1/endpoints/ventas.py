@@ -1,5 +1,8 @@
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import Decimal
+
+# Guatemala siempre UTC-6 (sin horario de verano)
+_GT_OFFSET = timedelta(hours=6)
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -23,9 +26,13 @@ def listar_ventas(
 ):
     query = db.query(Venta)
     if fecha_desde:
-        query = query.filter(Venta.fecha >= fecha_desde)
+        # Convertir fecha Guatemala a UTC: inicio del día GT = inicio_dia + 6h en UTC
+        dt_desde = datetime.combine(fecha_desde, datetime.min.time()) + _GT_OFFSET
+        query = query.filter(Venta.fecha >= dt_desde)
     if fecha_hasta:
-        query = query.filter(Venta.fecha <= fecha_hasta)
+        # Final del día Guatemala en UTC = fin_dia_GT + 6h = inicio día siguiente + 6h en UTC
+        dt_hasta = datetime.combine(fecha_hasta, datetime.min.time()) + _GT_OFFSET + timedelta(days=1)
+        query = query.filter(Venta.fecha < dt_hasta)
     return query.order_by(Venta.fecha.desc()).offset(skip).limit(limit).all()
 
 

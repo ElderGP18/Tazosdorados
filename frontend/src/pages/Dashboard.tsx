@@ -3,13 +3,13 @@ import { ShoppingCart, TrendingUp, Package, AlertTriangle } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { format, subDays } from 'date-fns'
+import { subDays } from 'date-fns'
 import { StatsCard } from '../components/common/StatsCard'
 import { getVentas } from '../api/ventas'
 import { getStockAlertas } from '../api/stock'
 import { getPrediccionManana } from '../api/predicciones'
 import { getIngredientes } from '../api/ingredientes'
-import { formatCurrency, formatDateShort } from '../utils/format'
+import { formatCurrency, formatDateShort, today as gtToday, toDateInput } from '../utils/format'
 import type { Venta, Stock, PrediccionDia, Ingrediente } from '../types'
 import { Badge } from '../components/ui/Badge'
 import { Spinner } from '../components/ui/Spinner'
@@ -22,7 +22,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const desde = format(subDays(new Date(), 7), 'yyyy-MM-dd')
+    const desde = toDateInput(subDays(new Date(), 7).toISOString())
     Promise.allSettled([
       getVentas({ fecha_desde: desde, limit: 200 }),
       getStockAlertas(),
@@ -37,17 +37,17 @@ export default function Dashboard() {
     })
   }, [])
 
-  const today = format(new Date(), 'yyyy-MM-dd')
-  const ventasHoy = ventas.filter((v) => v.fecha.startsWith(today))
+  const todayGT = gtToday()
+  // Convertir fecha UTC del servidor a fecha Guatemala para comparar
+  const ventasHoy = ventas.filter((v) => toDateInput(v.fecha) === todayGT)
   const totalHoy = ventasHoy.reduce((sum, v) => sum + Number(v.total), 0)
   const totalSemana = ventas.reduce((sum, v) => sum + Number(v.total), 0)
 
-  // Ventas por día para la gráfica
+  // Ventas por día para la gráfica (fechas en zona Guatemala)
   const ultimos7 = Array.from({ length: 7 }, (_, i) => {
-    const d = subDays(new Date(), 6 - i)
-    const key = format(d, 'yyyy-MM-dd')
+    const key = toDateInput(subDays(new Date(), 6 - i).toISOString())
     const total = ventas
-      .filter((v) => v.fecha.startsWith(key))
+      .filter((v) => toDateInput(v.fecha) === key)
       .reduce((s, v) => s + Number(v.total), 0)
     return { dia: formatDateShort(key), total }
   })

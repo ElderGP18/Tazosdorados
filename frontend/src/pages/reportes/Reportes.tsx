@@ -4,7 +4,8 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from 'recharts'
-import { format, subDays, subMonths, startOfMonth } from 'date-fns'
+import { subDays, subMonths, startOfMonth } from 'date-fns'
+import { today as gtToday, toDateInput } from '../../utils/format'
 import { getVentas } from '../../api/ventas'
 import { PageHeader } from '../../components/common/PageHeader'
 import { StatsCard } from '../../components/common/StatsCard'
@@ -23,11 +24,11 @@ export default function Reportes() {
 
   const getFechas = (p: Periodo): [string, string] => {
     const hoy = new Date()
-    const hasta = format(hoy, 'yyyy-MM-dd')
+    const hasta = gtToday()
     const desde =
-      p === '7d' ? format(subDays(hoy, 6), 'yyyy-MM-dd') :
-      p === '30d' ? format(subDays(hoy, 29), 'yyyy-MM-dd') :
-      format(startOfMonth(subMonths(hoy, 2)), 'yyyy-MM-dd')
+      p === '7d' ? toDateInput(subDays(hoy, 6).toISOString()) :
+      p === '30d' ? toDateInput(subDays(hoy, 29).toISOString()) :
+      toDateInput(startOfMonth(subMonths(hoy, 2)).toISOString())
     return [desde, hasta]
   }
 
@@ -48,9 +49,8 @@ export default function Reportes() {
   const [desde] = getFechas(periodo)
   const dias = periodo === '7d' ? 7 : periodo === '30d' ? 30 : 90
   const ventasPorDia = Array.from({ length: dias }, (_, i) => {
-    const d = subDays(new Date(), dias - 1 - i)
-    const key = format(d, 'yyyy-MM-dd')
-    const total = ventas.filter((v) => v.fecha.startsWith(key)).reduce((s, v) => s + Number(v.total), 0)
+    const key = toDateInput(subDays(new Date(), dias - 1 - i).toISOString())
+    const total = ventas.filter((v) => toDateInput(v.fecha) === key).reduce((s, v) => s + Number(v.total), 0)
     return { fecha: formatDateShort(key), total }
   })
 
