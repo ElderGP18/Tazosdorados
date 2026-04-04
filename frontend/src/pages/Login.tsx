@@ -26,7 +26,7 @@ export default function Login() {
       const { data } = await login(email, password)
       const decoded = jwtDecode(data.access_token)
       setAuth(
-        { id: decoded.sub, nombre: decoded.nombre ?? email.split('@')[0], email, rol: decoded.rol ?? 'cajero' },
+        { id: Number(decoded.sub), nombre: decoded.nombre ?? email.split('@')[0], email, rol: decoded.rol ?? 'cajero' },
         data.access_token
       )
       navigate('/dashboard')
