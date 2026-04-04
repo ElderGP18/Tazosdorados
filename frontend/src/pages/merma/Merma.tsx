@@ -1,51 +1,32 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
-import { getStock } from '../../api/stock'
-import { getIngredientes } from '../../api/ingredientes'
+import { getRiesgoMerma } from '../../api/predicciones'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Badge } from '../../components/ui/Badge'
 import { Spinner } from '../../components/ui/Spinner'
 import { EmptyState } from '../../components/common/EmptyState'
-import type { ItemMerma, Stock, Ingrediente } from '../../types'
+import type { ItemRiesgoMerma } from '../../types'
 
-function calcularMerma(stock: Stock[], ingredientes: Ingrediente[]): ItemMerma[] {
-  return stock
-    .filter((s) => s.cantidad_disponible < s.cantidad_minima)
-    .map((s) => {
-      const ing = ingredientes.find((i) => i.id === s.ingrediente_id)
-      const porcentaje = s.cantidad_minima > 0
-        ? Math.round((Number(s.cantidad_disponible) / Number(s.cantidad_minima)) * 100)
-        : 0
-      const nivel: ItemMerma['nivel'] =
-        porcentaje <= 30 ? 'alto' : porcentaje <= 70 ? 'medio' : 'bajo'
-      return {
-        ingrediente_id: s.ingrediente_id,
-        nombre: ing?.nombre ?? `#${s.ingrediente_id}`,
-        unidad_medida: ing?.unidad_medida ?? '',
-        cantidad_disponible: Number(s.cantidad_disponible),
-        cantidad_minima: Number(s.cantidad_minima),
-        porcentaje_restante: porcentaje,
-        nivel,
-      }
-    })
-    .sort((a, b) => a.porcentaje_restante - b.porcentaje_restante)
-}
-
-const nivelConfig = {
-  alto:  { label: 'Riesgo alto',  variant: 'danger' as const,  bg: 'bg-red-50 border-red-200',   barColor: 'bg-red-500', icon: '🔴' },
-  medio: { label: 'Riesgo medio', variant: 'warning' as const, bg: 'bg-yellow-50 border-yellow-200', barColor: 'bg-yellow-400', icon: '🟡' },
-  bajo:  { label: 'Riesgo bajo',  variant: 'info' as const,    bg: 'bg-blue-50 border-blue-200', barColor: 'bg-blue-400', icon: '🔵' },
+const riesgoConfig = {
+  alto:       { label: 'Riesgo alto',   variant: 'danger' as const,  bg: 'bg-red-50 border-red-200',      barColor: 'bg-red-500',    icon: '🔴', sub: 'Usar o donar pronto' },
+  medio:      { label: 'Riesgo medio',  variant: 'warning' as const, bg: 'bg-yellow-50 border-yellow-200', barColor: 'bg-yellow-400', icon: '🟡', sub: 'Monitorear consumo' },
+  bajo_stock: { label: 'Stock bajo',    variant: 'info' as const,    bg: 'bg-blue-50 border-blue-200',    barColor: 'bg-blue-400',   icon: '🔵', sub: 'Reabastecer pronto' },
 }
 
 export default function Merma() {
-  const [items, setItems] = useState<ItemMerma[]>([])
+  const [items, setItems] = useState<ItemRiesgoMerma[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
+    setError(null)
     try {
-      const [s, i] = await Promise.all([getStock(), getIngredientes()])
-      setItems(calcularMerma(s.data, i.data))
+      const res = await getRiesgoMerma()
+      setItems(res.data.ingredientes_en_riesgo)
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } }
+      setError(err?.response?.data?.detail ?? 'Error al cargar riesgo de merma')
     } finally {
       setLoading(false)
     }
@@ -53,15 +34,15 @@ export default function Merma() {
 
   useEffect(() => { load() }, [])
 
-  const alto = items.filter((i) => i.nivel === 'alto')
-  const medio = items.filter((i) => i.nivel === 'medio')
-  const bajo = items.filter((i) => i.nivel === 'bajo')
+  const alto = items.filter((i) => i.riesgo === 'alto')
+  const medio = items.filter((i) => i.riesgo === 'medio')
+  const bajoStock = items.filter((i) => i.riesgo === 'bajo_stock')
 
   return (
     <div>
       <PageHeader
         title="Control de merma"
-        description="Ingredientes con riesgo de agotamiento"
+        description="Ingredientes perecederos con riesgo de vencimiento o stock bajo"
         action={
           <button onClick={load} className="btn-secondary" disabled={loading}>
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Actualizar
@@ -71,21 +52,25 @@ export default function Merma() {
 
       {loading ? (
         <div className="flex justify-center py-20"><Spinner size="lg" className="text-brand-400" /></div>
+      ) : error ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+          <p className="text-red-700 font-medium">{error}</p>
+        </div>
       ) : items.length === 0 ? (
         <EmptyState
           message="Sin riesgo de merma"
-          description="Todos los ingredientes están por encima del nivel mínimo configurado."
+          description="Todos los ingredientes están dentro de sus parámetros normales."
         />
       ) : (
         <div className="space-y-6">
-          {/* Resumen con contadores */}
+          {/* Resumen */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {([
-              { nivel: 'alto', count: alto.length, label: 'Riesgo alto', bg: 'bg-red-50 border-red-300', text: 'text-red-700', sub: 'Acción inmediata' },
-              { nivel: 'medio', count: medio.length, label: 'Riesgo medio', bg: 'bg-yellow-50 border-yellow-300', text: 'text-yellow-700', sub: 'Revisar hoy' },
-              { nivel: 'bajo', count: bajo.length, label: 'Riesgo bajo', bg: 'bg-blue-50 border-blue-300', text: 'text-blue-700', sub: 'Monitorear' },
-            ]).map(({ nivel, count, label, bg, text, sub }) => (
-              <div key={nivel} className={`rounded-xl border p-4 ${bg}`}>
+            {[
+              { riesgo: 'alto', count: alto.length, label: 'Riesgo alto', bg: 'bg-red-50 border-red-300', text: 'text-red-700', sub: 'Exceso vs vida útil' },
+              { riesgo: 'medio', count: medio.length, label: 'Riesgo medio', bg: 'bg-yellow-50 border-yellow-300', text: 'text-yellow-700', sub: 'Vigilar consumo' },
+              { riesgo: 'bajo_stock', count: bajoStock.length, label: 'Stock bajo', bg: 'bg-blue-50 border-blue-300', text: 'text-blue-700', sub: 'Reabastecer' },
+            ].map(({ riesgo, count, label, bg, text, sub }) => (
+              <div key={riesgo} className={`rounded-xl border p-4 ${bg}`}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className={`text-3xl font-bold ${text}`}>{count}</p>
@@ -99,15 +84,12 @@ export default function Merma() {
           </div>
 
           {/* Secciones por nivel */}
-          {([
-            { nivel: 'alto', list: alto },
-            { nivel: 'medio', list: medio },
-            { nivel: 'bajo', list: bajo },
-          ] as const).map(({ nivel, list }) => {
+          {(['alto', 'medio', 'bajo_stock'] as const).map((riesgo) => {
+            const list = riesgo === 'alto' ? alto : riesgo === 'medio' ? medio : bajoStock
             if (list.length === 0) return null
-            const cfg = nivelConfig[nivel]
+            const cfg = riesgoConfig[riesgo]
             return (
-              <div key={nivel} className={`rounded-xl border ${cfg.bg} overflow-hidden`}>
+              <div key={riesgo} className={`rounded-xl border ${cfg.bg} overflow-hidden`}>
                 <div className="px-5 py-3 border-b border-inherit flex items-center gap-2">
                   <span>{cfg.icon}</span>
                   <h3 className="font-semibold text-gray-900">{cfg.label}</h3>
@@ -119,22 +101,22 @@ export default function Merma() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1.5">
                           <p className="font-semibold text-gray-900 text-sm">{item.nombre}</p>
-                          <Badge variant={cfg.variant}>{item.porcentaje_restante}%</Badge>
+                          <Badge variant={cfg.variant}>{item.riesgo === 'bajo_stock' ? 'Stock bajo' : `${item.vida_util_dias}d vida útil`}</Badge>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-gray-200/70 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full ${cfg.barColor} transition-all`}
-                              style={{ width: `${Math.min(item.porcentaje_restante, 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                        <div className="flex gap-6 mt-1.5 text-xs text-gray-500">
-                          <span>Actual: <span className="font-medium text-gray-700">{item.cantidad_disponible} {item.unidad_medida}</span></span>
-                          <span>Mínimo: <span className="font-medium text-gray-700">{item.cantidad_minima} {item.unidad_medida}</span></span>
-                          <span className="text-red-600 font-medium">
-                            Faltante: {Math.max(0, item.cantidad_minima - item.cantidad_disponible).toFixed(2)} {item.unidad_medida}
+                        <div className="flex gap-6 mt-1 text-xs text-gray-500 flex-wrap">
+                          <span>Stock: <span className="font-medium text-gray-700">{item.stock_actual} {item.unidad_medida}</span></span>
+                          <span>Consumo/día: <span className="font-medium text-gray-700">{item.consumo_diario_prom.toFixed(2)} {item.unidad_medida}</span></span>
+                          <span>
+                            Días hasta agotar:{' '}
+                            <span className="font-medium text-gray-700">
+                              {item.dias_hasta_agotar >= 999 ? '—' : item.dias_hasta_agotar}
+                            </span>
                           </span>
+                          {item.exceso_estimado > 0 && (
+                            <span className="text-red-600 font-medium">
+                              Exceso estimado: {item.exceso_estimado.toFixed(2)} {item.unidad_medida}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

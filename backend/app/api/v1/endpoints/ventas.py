@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.venta import Venta, DetalleVenta
+from app.models.receta import RecetaDetalle
+from app.models.stock import Stock, MovimientoStock
 from app.schemas.venta import VentaCreate, VentaOut
 
 router = APIRouter(prefix="/ventas", tags=["ventas"])
@@ -53,6 +55,35 @@ def registrar_venta(data: VentaCreate, db: Session = Depends(get_db)):
         detalles=detalles_orm,
     )
     db.add(venta)
+    db.flush()  # Obtener venta.id sin hacer commit todavía
+
+    # ── Descuento automático de stock según recetas ────────────────────────
+    for det in data.detalles:
+        recetas = (
+            db.query(RecetaDetalle)
+            .filter(RecetaDetalle.producto_id == det.producto_id)
+            .all()
+        )
+        for receta in recetas:
+            cantidad_usar = receta.cantidad * Decimal(str(det.cantidad))
+            stock = (
+                db.query(Stock)
+                .filter(Stock.ingrediente_id == receta.ingrediente_id)
+                .first()
+            )
+            if stock:
+                stock.cantidad_disponible = max(
+                    Decimal("0"),
+                    stock.cantidad_disponible - cantidad_usar,
+                )
+                db.add(MovimientoStock(
+                    ingrediente_id=receta.ingrediente_id,
+                    tipo="salida",
+                    cantidad=cantidad_usar,
+                    referencia=f"venta_{venta.id}",
+                    notas="Descuento automático por venta",
+                ))
+
     db.commit()
     db.refresh(venta)
     return venta

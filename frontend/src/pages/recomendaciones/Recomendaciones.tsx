@@ -1,53 +1,35 @@
 import { useEffect, useState } from 'react'
-import { ShoppingBag, RefreshCw } from 'lucide-react'
-import { getStock } from '../../api/stock'
-import { getIngredientes } from '../../api/ingredientes'
+import { ShoppingBag, RefreshCw, TrendingUp } from 'lucide-react'
+import { getRecomendacionesCompra } from '../../api/predicciones'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Badge } from '../../components/ui/Badge'
 import { Spinner } from '../../components/ui/Spinner'
 import { EmptyState } from '../../components/common/EmptyState'
-import type { Recomendacion, Stock, Ingrediente } from '../../types'
-
-function calcularRecomendaciones(stock: Stock[], ingredientes: Ingrediente[]): Recomendacion[] {
-  return stock
-    .filter((s) => s.cantidad_disponible < s.cantidad_minima * 1.5)
-    .map((s) => {
-      const ing = ingredientes.find((i) => i.id === s.ingrediente_id)
-      const porcentaje = s.cantidad_minima > 0 ? s.cantidad_disponible / s.cantidad_minima : 1
-      const prioridad: Recomendacion['prioridad'] =
-        porcentaje <= 0.3 ? 'alta' : porcentaje <= 0.7 ? 'media' : 'baja'
-      const cantidad_sugerida = Math.ceil(s.cantidad_minima * 3 - s.cantidad_disponible)
-      return {
-        ingrediente_id: s.ingrediente_id,
-        nombre: ing?.nombre ?? `#${s.ingrediente_id}`,
-        unidad_medida: ing?.unidad_medida ?? '',
-        stock_actual: Number(s.cantidad_disponible),
-        stock_minimo: Number(s.cantidad_minima),
-        cantidad_sugerida,
-        prioridad,
-      }
-    })
-    .sort((a, b) => {
-      const order = { alta: 0, media: 1, baja: 2 }
-      return order[a.prioridad] - order[b.prioridad]
-    })
-}
+import type { RecomendacionCompra } from '../../types'
 
 const prioridadConfig = {
   alta:  { label: 'Alta',  variant: 'danger' as const,   desc: 'Compra urgente' },
   media: { label: 'Media', variant: 'warning' as const,  desc: 'Comprar pronto' },
-  baja:  { label: 'Baja',  variant: 'info' as const,     desc: 'Revisar stock' },
+  ok:    { label: 'OK',    variant: 'success' as const,  desc: 'Stock suficiente' },
 }
 
 export default function Recomendaciones() {
-  const [recomendaciones, setRecomendaciones] = useState<Recomendacion[]>([])
+  const [recomendaciones, setRecomendaciones] = useState<RecomendacionCompra[]>([])
+  const [dias, setDias] = useState(7)
+  const [diasProyectados, setDiasProyectados] = useState(7)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const load = async () => {
+  const load = async (d = dias) => {
     setLoading(true)
+    setError(null)
     try {
-      const [s, i] = await Promise.all([getStock(), getIngredientes()])
-      setRecomendaciones(calcularRecomendaciones(s.data, i.data))
+      const res = await getRecomendacionesCompra(d)
+      setRecomendaciones(res.data.recomendaciones)
+      setDiasProyectados(res.data.dias_proyectados)
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } }
+      setError(err?.response?.data?.detail ?? 'Error al cargar recomendaciones')
     } finally {
       setLoading(false)
     }
@@ -55,46 +37,76 @@ export default function Recomendaciones() {
 
   useEffect(() => { load() }, [])
 
+  const activas = recomendaciones.filter((r) => r.prioridad !== 'ok')
   const alta = recomendaciones.filter((r) => r.prioridad === 'alta')
   const media = recomendaciones.filter((r) => r.prioridad === 'media')
-  const baja = recomendaciones.filter((r) => r.prioridad === 'baja')
 
   return (
     <div>
       <PageHeader
         title="Recomendaciones de compra"
-        description="Basadas en niveles de stock actuales"
+        description={`Basadas en predicción ML para los próximos ${diasProyectados} días`}
         action={
-          <button onClick={load} className="btn-secondary" disabled={loading}>
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Actualizar
-          </button>
+          <div className="flex items-center gap-2">
+            <select
+              value={dias}
+              onChange={(e) => { const d = Number(e.target.value); setDias(d); load(d) }}
+              className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white"
+              disabled={loading}
+            >
+              {[3, 7, 14, 21, 30].map((d) => (
+                <option key={d} value={d}>{d} días</option>
+              ))}
+            </select>
+            <button onClick={() => load()} className="btn-secondary" disabled={loading}>
+              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Actualizar
+            </button>
+          </div>
         }
       />
 
       {loading ? (
         <div className="flex justify-center py-20"><Spinner size="lg" className="text-brand-400" /></div>
-      ) : recomendaciones.length === 0 ? (
+      ) : error ? (
+        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-6 text-center">
+          <p className="text-yellow-700 font-medium">{error}</p>
+          {error.includes('Modelo') && (
+            <p className="text-sm text-yellow-600 mt-1">Ve a Predicciones y entrena el modelo primero.</p>
+          )}
+        </div>
+      ) : activas.length === 0 ? (
         <EmptyState
-          message="Sin recomendaciones"
-          description="El stock de todos los ingredientes está en niveles adecuados."
+          message="Sin recomendaciones de compra"
+          description="El stock cubre la demanda predicha para el período seleccionado."
         />
       ) : (
         <div className="space-y-6">
           {/* Resumen */}
           <div className="grid grid-cols-3 gap-4">
-            {([['alta', alta.length, 'bg-red-50 border-red-200 text-red-700'], ['media', media.length, 'bg-yellow-50 border-yellow-200 text-yellow-700'], ['baja', baja.length, 'bg-blue-50 border-blue-200 text-blue-700']] as const).map(([p, count, cls]) => (
-              <div key={p} className={`rounded-xl border p-4 text-center ${cls}`}>
-                <p className="text-2xl font-bold">{count}</p>
-                <p className="text-sm font-medium capitalize">Prioridad {p}</p>
-              </div>
-            ))}
+            <div className="rounded-xl border bg-red-50 border-red-200 text-red-700 p-4 text-center">
+              <p className="text-2xl font-bold">{alta.length}</p>
+              <p className="text-sm font-medium">Prioridad alta</p>
+            </div>
+            <div className="rounded-xl border bg-yellow-50 border-yellow-200 text-yellow-700 p-4 text-center">
+              <p className="text-2xl font-bold">{media.length}</p>
+              <p className="text-sm font-medium">Prioridad media</p>
+            </div>
+            <div className="rounded-xl border bg-gray-50 border-gray-200 text-gray-600 p-4 text-center">
+              <p className="text-2xl font-bold">{recomendaciones.filter(r => r.prioridad === 'ok').length}</p>
+              <p className="text-sm font-medium">Stock OK</p>
+            </div>
+          </div>
+
+          {/* Nota ML */}
+          <div className="flex items-center gap-2 text-sm text-gray-500 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5">
+            <TrendingUp size={14} className="text-blue-400 flex-shrink-0" />
+            Las cantidades se calculan a partir de la predicción de ventas del modelo ML × recetas × stock disponible.
           </div>
 
           {/* Lista */}
           <div className="card divide-y divide-gray-100">
             {recomendaciones.map((r) => {
               const cfg = prioridadConfig[r.prioridad]
-              const porcentaje = r.stock_minimo > 0 ? Math.round((r.stock_actual / r.stock_minimo) * 100) : 100
               return (
                 <div key={r.ingrediente_id} className="flex items-center gap-4 px-5 py-4">
                   <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -107,19 +119,15 @@ export default function Recomendaciones() {
                     </div>
                     <div className="flex items-center gap-6 text-sm text-gray-500">
                       <span>Stock: <span className="font-medium text-gray-700">{r.stock_actual} {r.unidad_medida}</span></span>
-                      <span>Mínimo: <span className="font-medium text-gray-700">{r.stock_minimo} {r.unidad_medida}</span></span>
-                      <span className="text-xs text-gray-400">({porcentaje}% del mínimo)</span>
-                    </div>
-                    <div className="mt-1.5 w-full bg-gray-200 rounded-full h-1.5">
-                      <div
-                        className={`h-1.5 rounded-full ${r.prioridad === 'alta' ? 'bg-red-500' : r.prioridad === 'media' ? 'bg-yellow-400' : 'bg-blue-400'}`}
-                        style={{ width: `${Math.min(porcentaje, 100)}%` }}
-                      />
+                      <span>Necesario: <span className="font-medium text-gray-700">{r.cantidad_necesaria.toFixed(2)} {r.unidad_medida}</span></span>
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-lg font-bold text-gray-900">{r.cantidad_sugerida}</p>
-                    <p className="text-xs text-gray-400">{r.unidad_medida} sugeridos</p>
+                    <p className="text-lg font-bold text-gray-900">{r.cantidad_a_comprar.toFixed(2)}</p>
+                    <p className="text-xs text-gray-400">{r.unidad_medida} a comprar</p>
+                    {r.costo_estimado > 0 && (
+                      <p className="text-xs text-green-600 font-medium mt-0.5">Q{r.costo_estimado.toFixed(2)}</p>
+                    )}
                     <p className="text-xs text-gray-400 mt-0.5">{cfg.desc}</p>
                   </div>
                 </div>

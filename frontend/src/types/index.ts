@@ -183,3 +183,37 @@ export interface ItemMerma {
   porcentaje_restante: number
   nivel: NivelMerma
 }
+
+// ── Recomendaciones de compra (ML backend) ────────────
+export interface RecomendacionCompra {
+  ingrediente_id: number
+  nombre: string
+  unidad_medida: string
+  stock_actual: number
+  cantidad_necesaria: number
+  cantidad_a_comprar: number
+  costo_estimado: number
+  prioridad: 'alta' | 'media' | 'ok'
+}
+
+export interface RecomendacionesCompraResponse {
+  dias_proyectados: number
+  recomendaciones: RecomendacionCompra[]
+}
+
+// ── Riesgo de merma (ML backend) ──────────────────────
+export interface ItemRiesgoMerma {
+  ingrediente_id: number
+  nombre: string
+  unidad_medida: string
+  stock_actual: number
+  consumo_diario_prom: number
+  vida_util_dias: number
+  dias_hasta_agotar: number
+  exceso_estimado: number
+  riesgo: 'alto' | 'medio' | 'bajo_stock'
+}
+
+export interface RiesgoMermaResponse {
+  ingredientes_en_riesgo: ItemRiesgoMerma[]
+}
