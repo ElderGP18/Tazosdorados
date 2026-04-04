@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
-import { Plus, Search, ChevronDown } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Plus, Search, ChevronDown, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { format, subDays, startOfWeek, startOfMonth } from 'date-fns'
 import { getVentas, createVenta } from '../../api/ventas'
 import { getProductos } from '../../api/productos'
+import { verificarStockVenta, type AdvertenciaStock } from '../../api/stock'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Modal } from '../../components/ui/Modal'
 import { Badge } from '../../components/ui/Badge'
@@ -31,6 +32,8 @@ export default function Ventas() {
   const [metodoPago, setMetodoPago] = useState('efectivo')
   const [notas, setNotas] = useState('')
   const [items, setItems] = useState<Array<{ producto_id: number; cantidad: number; precio_unitario: number }>>([])
+  const [advertencias, setAdvertencias] = useState<AdvertenciaStock[]>([])
+  const verificarTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchVentas = async (desde: string, hasta: string) => {
     setLoading(true)
@@ -86,6 +89,22 @@ export default function Ventas() {
 
   const total = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
 
+  // Verificar stock cada vez que cambian los items (debounce 400ms)
+  useEffect(() => {
+    if (verificarTimer.current) clearTimeout(verificarTimer.current)
+    if (items.length === 0) { setAdvertencias([]); return }
+    verificarTimer.current = setTimeout(async () => {
+      try {
+        const { data } = await verificarStockVenta(
+          items.map((i) => ({ producto_id: i.producto_id, cantidad: i.cantidad }))
+        )
+        setAdvertencias(data.advertencias)
+      } catch {
+        setAdvertencias([])
+      }
+    }, 400)
+  }, [items])
+
   const handleSave = async () => {
     if (items.length === 0) { toast.error('Agrega al menos un producto'); return }
     setSaving(true)
@@ -93,7 +112,7 @@ export default function Ventas() {
       await createVenta({ metodo_pago: metodoPago, notas, detalles: items })
       toast.success('Venta registrada')
       setModalOpen(false)
-      setItems([]); setNotas(''); setMetodoPago('efectivo')
+      setItems([]); setNotas(''); setMetodoPago('efectivo'); setAdvertencias([])
       fetchVentas(fechaDesde, fechaHasta)
     } catch (err) {
       toast.error(getErrorMessage(err))
@@ -110,7 +129,7 @@ export default function Ventas() {
         title="Ventas"
         description="Registro y consulta de ventas"
         action={
-          <button onClick={() => { setModalOpen(true); setItems([]) }} className="btn-primary">
+          <button onClick={() => { setModalOpen(true); setItems([]); setAdvertencias([]) }} className="btn-primary">
             <Plus size={16} /> Nueva venta
           </button>
         }
@@ -250,6 +269,29 @@ export default function Ventas() {
               </div>
             )}
           </div>
+
+          {/* Advertencias de stock insuficiente */}
+          {advertencias.length > 0 && (
+            <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 space-y-1.5">
+              <div className="flex items-center gap-2 mb-1">
+                <AlertTriangle size={15} className="text-orange-600 flex-shrink-0" />
+                <p className="text-sm font-semibold text-orange-800">Stock insuficiente para esta venta</p>
+              </div>
+              {advertencias.map((a) => (
+                <div key={a.ingrediente} className="flex items-center justify-between text-xs text-orange-700 bg-orange-100 rounded-lg px-3 py-1.5">
+                  <span className="font-medium">{a.ingrediente}</span>
+                  <span>
+                    Disponible: <span className="font-semibold">{a.disponible} {a.unidad_medida}</span>
+                    {' · '}
+                    Necesario: <span className="font-semibold">{a.necesario} {a.unidad_medida}</span>
+                    {' · '}
+                    <span className="text-red-600 font-semibold">Falta: {a.faltante} {a.unidad_medida}</span>
+                  </span>
+                </div>
+              ))}
+              <p className="text-xs text-orange-600 pt-0.5">Puedes continuar de todas formas o revisar el stock primero.</p>
+            </div>
+          )}
 
           <div className="flex items-center justify-between pt-3 border-t border-gray-100">
             <span className="text-lg font-bold text-gray-900">Total: {formatCurrency(total)}</span>

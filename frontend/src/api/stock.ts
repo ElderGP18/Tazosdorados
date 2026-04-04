@@ -20,3 +20,17 @@ export const registrarMovimiento = (data: {
   referencia?: string
   notas?: string
 }) => apiClient.post<MovimientoStock>('/stock/movimientos', data)
+
+export interface AdvertenciaStock {
+  ingrediente: string
+  unidad_medida: string
+  necesario: number
+  disponible: number
+  faltante: number
+}
+
+export const verificarStockVenta = (items: { producto_id: number; cantidad: number }[]) =>
+  apiClient.post<{ puede_proceder: boolean; advertencias: AdvertenciaStock[] }>(
+    '/stock/verificar-venta',
+    items,
+  )

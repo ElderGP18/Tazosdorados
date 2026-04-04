@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -211,73 +211,78 @@ def recomendaciones_compra(
 @router.get("/riesgo-merma")
 def riesgo_merma(db: Session = Depends(get_db)):
     """
-    Evalúa el riesgo de merma de ingredientes perecederos basado en:
-    - Stock actual
-    - Consumo promedio diario (últimos 14 días de ventas)
-    - Vida útil estimada del ingrediente
+    Evalúa el riesgo de vencimiento de ingredientes perecederos basado en:
+    - Fecha del último ingreso al stock (movimiento tipo 'entrada')
+    - Vida útil estimada del ingrediente según su tipo
+    - Stock actual disponible (ingredientes sin stock se ignoran)
     """
-    # Consumo promedio diario por ingrediente (últimos 14 días)
-    consumo_sql = text("""
-        SELECT
-            rd.ingrediente_id,
-            SUM(dv.cantidad * rd.cantidad) / 14.0 AS consumo_diario_promedio
-        FROM detalles_venta dv
-        JOIN ventas v ON v.id = dv.venta_id
-        JOIN recetas_detalle rd ON rd.producto_id = dv.producto_id
-        WHERE v.fecha >= DATE_SUB(NOW(), INTERVAL 14 DAY)
-        GROUP BY rd.ingrediente_id
+    # Última fecha de entrada por ingrediente
+    ultima_entrada_sql = text("""
+        SELECT ingrediente_id, MAX(fecha) AS ultima_entrada
+        FROM movimientos_stock
+        WHERE tipo = 'entrada'
+        GROUP BY ingrediente_id
     """)
-    consumo_rows = db.execute(consumo_sql).fetchall()
-    consumo_map = {r[0]: float(r[1]) for r in consumo_rows}
+    entradas = {r[0]: r[1] for r in db.execute(ultima_entrada_sql).fetchall()}
 
-    # Stock + info de ingrediente
+    # Stock + info de ingrediente (solo perecederos con stock > 0)
     stock_sql = text("""
         SELECT s.ingrediente_id, i.nombre, i.unidad_medida,
-               s.cantidad_disponible, s.cantidad_minima
+               s.cantidad_disponible, s.ultima_actualizacion
         FROM stock s
         JOIN ingredientes i ON i.id = s.ingrediente_id
         WHERE i.activo = 1
-          AND i.unidad_medida IN ('kg', 'litro', 'unidad')
+          AND s.cantidad_disponible > 0
     """)
     stock_rows = db.execute(stock_sql).fetchall()
 
+    ahora = datetime.now(timezone.utc)
     resultado = []
-    for ing_id, nombre, unidad, disponible, minimo in stock_rows:
-        disponible = float(disponible)
-        consumo_dia = consumo_map.get(ing_id, 0.0)
+
+    for ing_id, nombre, unidad, disponible, ultima_act in stock_rows:
         vida_util = _vida_util(nombre)
+        # Solo analizar ingredientes perecederos (vida útil < 60 días)
+        if vida_util >= 60:
+            continue
 
-        # Días hasta agotar stock
-        dias_restantes = (
-            round(disponible / consumo_dia, 1) if consumo_dia > 0 else 999
-        )
+        # Fecha de referencia: último ingreso o última actualización de stock
+        ref_dt = entradas.get(ing_id) or ultima_act
+        if ref_dt is None:
+            continue
 
-        # Cantidad que podría vencer antes de consumirse
-        consumo_en_vida_util = consumo_dia * vida_util
-        exceso = max(0.0, disponible - consumo_en_vida_util)
-
-        # Clasificación de riesgo
-        if exceso > 0 and vida_util <= 5:
-            riesgo = "alto"
-        elif exceso > 0 and vida_util <= 10:
-            riesgo = "medio"
-        elif disponible < float(minimo):
-            riesgo = "bajo_stock"
+        # Normalizar a aware datetime
+        if isinstance(ref_dt, datetime):
+            ref_aware = ref_dt.replace(tzinfo=timezone.utc) if ref_dt.tzinfo is None else ref_dt
         else:
-            riesgo = "normal"
+            # Es un objeto date
+            ref_aware = datetime(ref_dt.year, ref_dt.month, ref_dt.day, tzinfo=timezone.utc)
 
-        if riesgo != "normal":
-            resultado.append({
-                "ingrediente_id":       ing_id,
-                "nombre":               nombre,
-                "unidad_medida":        unidad,
-                "stock_actual":         round(disponible, 4),
-                "consumo_diario_prom":  round(consumo_dia, 4),
-                "vida_util_dias":       vida_util,
-                "dias_hasta_agotar":    dias_restantes,
-                "exceso_estimado":      round(exceso, 4),
-                "riesgo":               riesgo,
-            })
+        dias_en_stock = max(0, (ahora - ref_aware).days)
+        dias_restantes = vida_util - dias_en_stock
+        porcentaje_restante = max(0, round((dias_restantes / vida_util) * 100))
 
-    resultado.sort(key=lambda x: {"alto": 0, "medio": 1, "bajo_stock": 2}.get(x["riesgo"], 3))
+        if dias_restantes <= 0:
+            riesgo = "vencido"
+        elif porcentaje_restante <= 25:
+            riesgo = "alto"
+        elif porcentaje_restante <= 60:
+            riesgo = "medio"
+        else:
+            continue  # Está bien, no aparece en la lista
+
+        resultado.append({
+            "ingrediente_id":       ing_id,
+            "nombre":               nombre,
+            "unidad_medida":        unidad,
+            "stock_actual":         round(float(disponible), 4),
+            "vida_util_dias":       vida_util,
+            "fecha_ingreso":        ref_aware.date().isoformat(),
+            "dias_en_stock":        dias_en_stock,
+            "dias_restantes":       max(0, dias_restantes),
+            "porcentaje_restante":  porcentaje_restante,
+            "riesgo":               riesgo,
+        })
+
+    orden = {"vencido": 0, "alto": 1, "medio": 2}
+    resultado.sort(key=lambda x: orden.get(x["riesgo"], 3))
     return {"ingredientes_en_riesgo": resultado}

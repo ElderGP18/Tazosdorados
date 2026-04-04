@@ -201,17 +201,18 @@ export interface RecomendacionesCompraResponse {
   recomendaciones: RecomendacionCompra[]
 }
 
-// ── Riesgo de merma (ML backend) ──────────────────────
+// ── Riesgo de merma (backend) ─────────────────────────
 export interface ItemRiesgoMerma {
   ingrediente_id: number
   nombre: string
   unidad_medida: string
   stock_actual: number
-  consumo_diario_prom: number
   vida_util_dias: number
-  dias_hasta_agotar: number
-  exceso_estimado: number
-  riesgo: 'alto' | 'medio' | 'bajo_stock'
+  fecha_ingreso: string
+  dias_en_stock: number
+  dias_restantes: number
+  porcentaje_restante: number
+  riesgo: 'vencido' | 'alto' | 'medio'
 }
 
 export interface RiesgoMermaResponse {

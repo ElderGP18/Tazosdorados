@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -6,6 +8,64 @@ from app.models.stock import Stock, MovimientoStock
 from app.schemas.stock import MovimientoStockCreate, MovimientoStockOut, StockOut
 
 router = APIRouter(prefix="/stock", tags=["stock"])
+
+
+class ItemVenta(BaseModel):
+    producto_id: int
+    cantidad: int
+
+
+@router.post("/verificar-venta")
+def verificar_stock_venta(items: list[ItemVenta], db: Session = Depends(get_db)):
+    """
+    Verifica si hay stock suficiente para los productos de una venta.
+    Devuelve lista de advertencias por ingrediente si hay faltantes.
+    """
+    if not items:
+        return {"puede_proceder": True, "advertencias": []}
+
+    # Necesidad total por ingrediente según recetas
+    necesidad: dict[int, dict] = {}
+    for item in items:
+        recetas = db.execute(
+            text("""
+                SELECT rd.ingrediente_id, i.nombre, i.unidad_medida,
+                       rd.cantidad * :cant AS total_necesario
+                FROM recetas_detalle rd
+                JOIN ingredientes i ON i.id = rd.ingrediente_id
+                WHERE rd.producto_id = :pid AND i.activo = 1
+            """),
+            {"pid": item.producto_id, "cant": item.cantidad},
+        ).fetchall()
+        for ing_id, nombre, unidad, necesario in recetas:
+            if ing_id not in necesidad:
+                necesidad[ing_id] = {"nombre": nombre, "unidad_medida": unidad, "necesario": 0.0}
+            necesidad[ing_id]["necesario"] += float(necesario)
+
+    if not necesidad:
+        return {"puede_proceder": True, "advertencias": []}
+
+    # Stock disponible
+    stock_rows = db.execute(
+        text("SELECT ingrediente_id, cantidad_disponible FROM stock WHERE ingrediente_id IN :ids"),
+        {"ids": tuple(necesidad.keys())},
+    ).fetchall()
+    stock_map = {r[0]: float(r[1]) for r in stock_rows}
+
+    advertencias = []
+    for ing_id, data in necesidad.items():
+        disponible = stock_map.get(ing_id, 0.0)
+        faltante = data["necesario"] - disponible
+        if faltante > 0:
+            advertencias.append({
+                "ingrediente":   data["nombre"],
+                "unidad_medida": data["unidad_medida"],
+                "necesario":     round(data["necesario"], 4),
+                "disponible":    round(disponible, 4),
+                "faltante":      round(faltante, 4),
+            })
+
+    return {"puede_proceder": len(advertencias) == 0, "advertencias": advertencias}
 
 
 @router.get("/", response_model=list[StockOut])
