@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: tazos-dorados-api
+    runtime: python
+    plan: free
+    rootDir: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false          # lo pones manualmente en el dashboard de Render
+      - key: SECRET_KEY
+        generateValue: true  # Render genera una automáticamente
+      - key: API_ADMIN_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "false"
+      - key: CORS_ORIGINS
+        sync: false          # lo pones manualmente: https://tudominio.com
