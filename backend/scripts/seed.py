@@ -12,7 +12,9 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, engine, Base
-from app.core.security import hash_password
+import bcrypt as _bcrypt
+def hash_password(password: str) -> str:
+    return _bcrypt.hashpw(password.encode(), _bcrypt.gensalt(rounds=12)).decode()
 from app.models import (
     Rol, Usuario, Categoria, Producto,
     Ingrediente, RecetaDetalle, Stock, Feriado,

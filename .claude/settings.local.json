@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(python -m pip install \"python-jose[cryptography]\" \"passlib[bcrypt]\")",
+      "Bash(python -m scripts.seed)"
     ]
   }
 }
