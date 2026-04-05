@@ -10,7 +10,8 @@ import { getStockAlertas } from '../api/stock'
 import { getPrediccionManana } from '../api/predicciones'
 import { getIngredientes } from '../api/ingredientes'
 import { formatCurrency, formatDateShort, today as gtToday, toDateInput } from '../utils/format'
-import type { Venta, Stock, PrediccionDia, Ingrediente } from '../types'
+import { getProductos } from '../api/productos'
+import type { Venta, Stock, PrediccionDia, Ingrediente, Producto } from '../types'
 import { Badge } from '../components/ui/Badge'
 import { Spinner } from '../components/ui/Spinner'
 
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const [alertas, setAlertas] = useState<Stock[]>([])
   const [prediccion, setPrediccion] = useState<PrediccionDia | null>(null)
   const [ingredientes, setIngredientes] = useState<Ingrediente[]>([])
+  const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -28,11 +30,13 @@ export default function Dashboard() {
       getStockAlertas(),
       getPrediccionManana(),
       getIngredientes(),
-    ]).then(([v, a, p, i]) => {
+      getProductos(),
+    ]).then(([v, a, p, i, pr]) => {
       if (v.status === 'fulfilled') setVentas(v.value.data)
       if (a.status === 'fulfilled') setAlertas(a.value.data)
       if (p.status === 'fulfilled') setPrediccion(p.value.data)
       if (i.status === 'fulfilled') setIngredientes(i.value.data)
+      if (pr.status === 'fulfilled') setProductos(pr.value.data)
       setLoading(false)
     })
   }, [])
@@ -56,7 +60,8 @@ export default function Dashboard() {
   const conteo: Record<number, { nombre: string; cantidad: number }> = {}
   ventas.forEach((v) =>
     v.detalles?.forEach((d) => {
-      if (!conteo[d.producto_id]) conteo[d.producto_id] = { nombre: `Producto #${d.producto_id}`, cantidad: 0 }
+      const nombre = productos.find((p) => p.id === d.producto_id)?.nombre ?? `Producto #${d.producto_id}`
+      if (!conteo[d.producto_id]) conteo[d.producto_id] = { nombre, cantidad: 0 }
       conteo[d.producto_id].cantidad += d.cantidad
     })
   )
@@ -221,7 +226,9 @@ export default function Dashboard() {
                 {ventasHoy.map((v) => (
                   <tr key={v.id} className="table-tr">
                     <td className="table-td text-gray-400">#{v.id}</td>
-                    <td className="table-td">{v.fecha.substring(11, 16)}</td>
+                    <td className="table-td">
+                      {new Intl.DateTimeFormat('es-GT', { timeZone: 'America/Guatemala', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(v.fecha.endsWith('Z') ? v.fecha : v.fecha + 'Z'))}
+                    </td>
                     <td className="table-td">{v.detalles?.length ?? 0} items</td>
                     <td className="table-td capitalize">{v.metodo_pago}</td>
                     <td className="table-td text-right font-semibold text-gray-900">

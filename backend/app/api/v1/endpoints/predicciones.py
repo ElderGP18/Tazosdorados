@@ -207,31 +207,40 @@ def recomendaciones_compra(
     return {"dias_proyectados": dias, "recomendaciones": resultado}
 
 
+def _to_aware(dt) -> datetime:
+    """Convierte datetime naive o date a datetime UTC-aware."""
+    if isinstance(dt, datetime):
+        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+    return datetime(dt.year, dt.month, dt.day, tzinfo=timezone.utc)
+
+
 @router.get("/riesgo-merma")
 def riesgo_merma(db: Session = Depends(get_db)):
     """
-    Devuelve TODOS los ingredientes perecederos (vida útil < 60 días) con su
-    estado de frescura, calculado desde la fecha del último ingreso al stock.
-    Estados: 'ok' | 'medio' | 'alto' | 'vencido'
+    Calcula el riesgo de merma por LOTE (FIFO).
+    Los lotes más antiguos se consumen primero. Si hay stock de distintas
+    fechas de compra, se muestra el estado real de cada lote.
     """
-    # Última fecha de entrada por ingrediente
-    entradas = {
-        r[0]: r[1]
-        for r in db.execute(
-            text("""
-                SELECT ingrediente_id, MAX(fecha) AS ultima_entrada
-                FROM movimientos_stock
-                WHERE tipo = 'entrada'
-                GROUP BY ingrediente_id
-            """)
-        ).fetchall()
-    }
+    # Todas las entradas de stock, ordenadas de más antiguo a más nuevo
+    entradas_rows = db.execute(
+        text("""
+            SELECT ingrediente_id, fecha, cantidad
+            FROM movimientos_stock
+            WHERE tipo = 'entrada'
+            ORDER BY ingrediente_id, fecha ASC
+        """)
+    ).fetchall()
 
-    # Todos los ingredientes activos con su stock
+    # Agrupar entradas por ingrediente
+    from collections import defaultdict
+    entradas_por_ing: dict = defaultdict(list)
+    for ing_id, fecha, cantidad in entradas_rows:
+        entradas_por_ing[ing_id].append({"fecha": fecha, "cantidad": float(cantidad)})
+
+    # Todos los ingredientes activos con su stock actual
     rows = db.execute(
         text("""
-            SELECT s.ingrediente_id, i.nombre, i.unidad_medida,
-                   s.cantidad_disponible, s.ultima_actualizacion
+            SELECT s.ingrediente_id, i.nombre, i.unidad_medida, s.cantidad_disponible
             FROM stock s
             JOIN ingredientes i ON i.id = s.ingrediente_id
             WHERE i.activo = 1
@@ -239,49 +248,76 @@ def riesgo_merma(db: Session = Depends(get_db)):
     ).fetchall()
 
     ahora = datetime.now(timezone.utc)
+    orden_estado = {"vencido": 0, "alto": 1, "medio": 2, "ok": 3}
     resultado = []
 
-    for ing_id, nombre, unidad, disponible, ultima_act in rows:
+    for ing_id, nombre, unidad, disponible in rows:
         vida_util = _vida_util(nombre)
         if vida_util >= 60:
-            continue  # No perecedero, se omite
+            continue  # No perecedero
 
-        # Fecha de referencia: último ingreso o última actualización
-        ref_dt = entradas.get(ing_id) or ultima_act
-        if ref_dt is None:
-            # Sin historial: asumir recién ingresado
-            ref_aware = ahora
-        elif isinstance(ref_dt, datetime):
-            ref_aware = ref_dt.replace(tzinfo=timezone.utc) if ref_dt.tzinfo is None else ref_dt
+        stock_actual = float(disponible)
+        entradas = entradas_por_ing.get(ing_id, [])
+
+        # ── Calcular lotes en stock usando FIFO ──────────────────────
+        if not entradas:
+            # Sin historial de entradas: asumir todo es de hoy
+            lotes_en_stock = [{"ref_aware": ahora, "cantidad": stock_actual}]
         else:
-            ref_aware = datetime(ref_dt.year, ref_dt.month, ref_dt.day, tzinfo=timezone.utc)
+            total_entrado = sum(e["cantidad"] for e in entradas)
+            ya_consumido = max(0.0, total_entrado - stock_actual)
 
-        dias_en_stock = max(0, (ahora - ref_aware).days)
-        dias_restantes = vida_util - dias_en_stock
-        porcentaje_restante = max(0, round((dias_restantes / vida_util) * 100))
+            lotes_en_stock = []
+            for e in entradas:  # más antiguo primero
+                if ya_consumido <= 0:
+                    lotes_en_stock.append({"ref_aware": _to_aware(e["fecha"]), "cantidad": e["cantidad"]})
+                elif ya_consumido >= e["cantidad"]:
+                    ya_consumido -= e["cantidad"]  # lote completamente consumido
+                else:
+                    # Lote parcialmente consumido — solo queda el resto
+                    restante = e["cantidad"] - ya_consumido
+                    ya_consumido = 0.0
+                    lotes_en_stock.append({"ref_aware": _to_aware(e["fecha"]), "cantidad": restante})
 
-        if dias_restantes <= 0:
-            estado = "vencido"
-        elif porcentaje_restante <= 25:
-            estado = "alto"
-        elif porcentaje_restante <= 60:
-            estado = "medio"
-        else:
-            estado = "ok"
+        # ── Evaluar frescura de cada lote ────────────────────────────
+        lotes_info = []
+        estado_general = "ok"
+
+        for lote in lotes_en_stock:
+            dias_en_stock = max(0, (ahora - lote["ref_aware"]).days)
+            dias_restantes = vida_util - dias_en_stock
+            pct = max(0, round((dias_restantes / vida_util) * 100))
+
+            if dias_restantes <= 0:
+                estado_lote = "vencido"
+            elif pct <= 25:
+                estado_lote = "alto"
+            elif pct <= 60:
+                estado_lote = "medio"
+            else:
+                estado_lote = "ok"
+
+            if orden_estado[estado_lote] < orden_estado[estado_general]:
+                estado_general = estado_lote
+
+            lotes_info.append({
+                "cantidad":          round(lote["cantidad"], 4),
+                "fecha_ingreso":     lote["ref_aware"].date().isoformat(),
+                "dias_en_stock":     dias_en_stock,
+                "dias_restantes":    max(0, dias_restantes),
+                "porcentaje_restante": pct,
+                "estado":            estado_lote,
+            })
 
         resultado.append({
-            "ingrediente_id":      ing_id,
-            "nombre":              nombre,
-            "unidad_medida":       unidad,
-            "stock_actual":        round(float(disponible), 4),
-            "vida_util_dias":      vida_util,
-            "fecha_ingreso":       ref_aware.date().isoformat(),
-            "dias_en_stock":       dias_en_stock,
-            "dias_restantes":      max(0, dias_restantes),
-            "porcentaje_restante": porcentaje_restante,
-            "estado":              estado,
+            "ingrediente_id": ing_id,
+            "nombre":         nombre,
+            "unidad_medida":  unidad,
+            "stock_actual":   round(stock_actual, 4),
+            "vida_util_dias": vida_util,
+            "estado_general": estado_general,
+            "lotes":          lotes_info,
         })
 
-    orden = {"vencido": 0, "alto": 1, "medio": 2, "ok": 3}
-    resultado.sort(key=lambda x: (orden.get(x["estado"], 4), x["nombre"]))
+    resultado.sort(key=lambda x: (orden_estado.get(x["estado_general"], 4), x["nombre"]))
     return {"ingredientes": resultado}

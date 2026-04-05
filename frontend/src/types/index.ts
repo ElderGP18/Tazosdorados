@@ -202,17 +202,23 @@ export interface RecomendacionesCompraResponse {
 }
 
 // ── Merma / frescura (backend) ────────────────────────
+export interface LoteMerma {
+  cantidad: number
+  fecha_ingreso: string
+  dias_en_stock: number
+  dias_restantes: number
+  porcentaje_restante: number
+  estado: 'ok' | 'medio' | 'alto' | 'vencido'
+}
+
 export interface ItemMermaFrescura {
   ingrediente_id: number
   nombre: string
   unidad_medida: string
   stock_actual: number
   vida_util_dias: number
-  fecha_ingreso: string
-  dias_en_stock: number
-  dias_restantes: number
-  porcentaje_restante: number
-  estado: 'ok' | 'medio' | 'alto' | 'vencido'
+  estado_general: 'ok' | 'medio' | 'alto' | 'vencido'
+  lotes: LoteMerma[]
 }
 
 export interface RiesgoMermaResponse {

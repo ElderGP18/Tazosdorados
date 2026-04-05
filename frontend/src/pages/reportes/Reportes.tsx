@@ -7,11 +7,12 @@ import {
 import { subDays, subMonths, startOfMonth } from 'date-fns'
 import { today as gtToday, toDateInput } from '../../utils/format'
 import { getVentas } from '../../api/ventas'
+import { getProductos } from '../../api/productos'
 import { PageHeader } from '../../components/common/PageHeader'
 import { StatsCard } from '../../components/common/StatsCard'
 import { Spinner } from '../../components/ui/Spinner'
 import { formatCurrency, formatDate, formatDateShort } from '../../utils/format'
-import type { Venta } from '../../types'
+import type { Venta, Producto } from '../../types'
 
 const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4']
 
@@ -19,6 +20,7 @@ type Periodo = '7d' | '30d' | '3m'
 
 export default function Reportes() {
   const [ventas, setVentas] = useState<Venta[]>([])
+  const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
   const [periodo, setPeriodo] = useState<Periodo>('30d')
 
@@ -43,6 +45,7 @@ export default function Reportes() {
     }
   }
 
+  useEffect(() => { getProductos().then(({ data }) => setProductos(data)) }, [])
   useEffect(() => { load(periodo) }, [periodo])
 
   // Ventas por día
@@ -60,10 +63,13 @@ export default function Reportes() {
   const pagoData = Object.entries(pagoConteo).map(([name, value]) => ({ name, value }))
 
   // Producto más vendido
+  const getNombreProducto = (id: number) =>
+    productos.find((p) => p.id === id)?.nombre ?? `Producto #${id}`
+
   const prodConteo: Record<number, { nombre: string; cantidad: number; revenue: number }> = {}
   ventas.forEach((v) =>
     v.detalles?.forEach((d) => {
-      if (!prodConteo[d.producto_id]) prodConteo[d.producto_id] = { nombre: `Producto #${d.producto_id}`, cantidad: 0, revenue: 0 }
+      if (!prodConteo[d.producto_id]) prodConteo[d.producto_id] = { nombre: getNombreProducto(d.producto_id), cantidad: 0, revenue: 0 }
       prodConteo[d.producto_id].cantidad += d.cantidad
       prodConteo[d.producto_id].revenue += Number(d.subtotal)
     })
