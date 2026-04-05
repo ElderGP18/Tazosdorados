@@ -68,13 +68,12 @@ PRODUCTOS = [
     ("Quesadilla al Pastor", "Queso blanco + carne al pastor en tortilla de maíz",                  42.00, "Quesadillas"),
     ("Quesadilla de Pollo",  "Queso blanco + pollo a la plancha en tortilla de maíz",               40.00, "Quesadillas"),
     # Bebidas
-    ("Agua Fresca",          "Sabor del día (1 litro)",                                              20.00, "Bebidas"),
-    ("Refresco",             "350 ml",                                                               18.00, "Bebidas"),
-    ("Horchata",             "Horchata de arroz (500 ml)",                                           25.00, "Bebidas"),
-    # Extras
-    ("Guacamol",             "100 g de guacamol fresco",                                             22.00, "Extras"),
-    ("Salsa Roja",           "Porción de salsa roja picante",                                         8.00, "Extras"),
-    ("Salsa Verde",          "Porción de salsa verde",                                                8.00, "Extras"),
+    ("Agua Fresca",          "Sabor del día (1 litro)",                                              15.00, "Bebidas"),
+    ("Refresco",             "350 ml",                                                               10.00, "Bebidas"),
+    # Extras / Guarniciones (gratis — siguen rebajando stock)
+    ("Guacamol",             "Guacamol fresco (incluido con tacos)",                                  0.00, "Extras"),
+    ("Salsa Roja",           "Salsa roja picante (guarnición gratis)",                                0.00, "Extras"),
+    ("Salsa Verde",          "Salsa verde (guarnición gratis)",                                       0.00, "Extras"),
     ("Tortillas extra (3)",  "Tres tortillas de maíz",                                              10.00, "Extras"),
 ]
 
