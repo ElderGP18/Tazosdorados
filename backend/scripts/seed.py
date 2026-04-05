@@ -79,86 +79,87 @@ PRODUCTOS = [
 ]
 
 # (nombre, unidad, costo_unitario, stock_inicial, stock_minimo)
-# Ingredientes en libras (lb). 1 lb = 0.453592 kg
+# Ingredientes: carnes/vegetales en lb, piña por unidad, líquidos en litro.
+# Márgenes: 58–83% según producto.
 INGREDIENTES = [
     ("Tortilla de maíz",    "unidad",  0.80,   500,   100),
-    ("Carne de marrano",    "lb",     34.00,    22.0,   4.5),
-    ("Carne de res",        "lb",     41.00,    18.0,   4.5),
-    ("Pechuga de pollo",    "lb",     27.00,    18.0,   4.5),
-    ("Chorizo chapín",      "lb",     36.00,    11.0,   2.2),
-    ("Queso blanco",        "lb",     25.00,    11.0,   2.2),
-    ("Cebolla",             "lb",      4.50,    11.0,   2.2),
-    ("Cilantro",            "lb",      5.50,     4.5,   1.0),
-    ("Tomate",              "lb",      4.50,    11.0,   2.2),
-    ("Chile guaque",        "lb",     20.00,     4.5,   1.0),
-    ("Chile pimiento",      "lb",      9.00,     4.5,   1.0),
-    ("Piña",                "lb",      7.00,     7.0,   1.0),
-    ("Aguacate",            "unidad",  8.00,    30,    10),
+    ("Carne de marrano",    "lb",     27.00,    22.0,   4.5),
+    ("Carne de res",        "lb",     40.00,    18.0,   4.5),
+    ("Pechuga de pollo",    "lb",     25.00,    18.0,   4.5),
+    ("Chorizo chapín",      "lb",     30.00,    11.0,   2.2),
+    ("Queso blanco",        "lb",     20.00,    11.0,   2.2),
+    ("Cebolla",             "lb",      3.50,    11.0,   2.2),
+    ("Cilantro",            "lb",      3.00,     4.5,   1.0),
+    ("Tomate",              "lb",      3.50,    11.0,   2.2),
+    ("Chile guaque",        "lb",     30.00,     4.5,   1.0),
+    ("Chile pimiento",      "lb",      8.00,     4.5,   1.0),
+    ("Piña",                "unidad", 10.00,     5,     2),
+    ("Aguacate",            "unidad",  5.00,    30,    10),
     ("Limón",               "unidad",  0.50,    50,    10),
-    ("Frijoles negros",     "lb",      5.50,    11.0,   2.2),
-    ("Crema",               "litro",  22.00,     2.0,   0.5),
+    ("Frijoles negros",     "lb",      4.00,    11.0,   2.2),
+    ("Crema",               "litro",  20.00,     2.0,   0.5),
     ("Sal",                 "lb",      2.00,     4.5,   1.0),
-    ("Aceite",              "litro",  20.00,     3.0,   1.0),
+    ("Aceite",              "litro",  18.00,     3.0,   1.0),
 ]
 
 # {nombre_producto: [(nombre_ingrediente, cantidad), ...]}
-# Recetas en lb. Tacos = porción de 3 tacos (cantidades x3 vs un solo taco).
-# Conversión: cantidad_kg * 2.20462 * 3 (tacos) o * 2.20462 (otros)
+# Tacos = porción de 3 tacos. ~50 g carne/taco = 0.11 lb/taco → 0.33 lb/porción.
+# Costo estimado → precio → margen entre paréntesis.
 RECETAS = {
-    "Taco al Pastor": [          # 3 tacos
+    "Taco al Pastor": [          # Q15.0 → Q40 → 63%
         ("Tortilla de maíz",  6),
-        ("Carne de marrano",  0.7937),   # 0.120 kg * 3 * 2.20462
-        ("Piña",              0.1984),   # 0.030 kg * 3 * 2.20462
-        ("Cebolla",           0.1323),   # 0.020 kg * 3 * 2.20462
-        ("Cilantro",          0.0661),   # 0.010 kg * 3 * 2.20462
+        ("Carne de marrano",  0.33),
+        ("Piña",              0.10),    # fracción de piña (unidad)
+        ("Cebolla",           0.03),
+        ("Cilantro",          0.01),
     ],
-    "Taco de Carne Asada": [     # 3 tacos
+    "Taco de Carne Asada": [     # Q18.2 → Q45 → 60%
         ("Tortilla de maíz",  6),
-        ("Carne de res",      0.7937),
-        ("Cebolla",           0.1323),
-        ("Cilantro",          0.0661),
+        ("Carne de res",      0.33),
+        ("Cebolla",           0.03),
+        ("Cilantro",          0.01),
     ],
-    "Taco de Pollo": [           # 3 tacos
+    "Taco de Pollo": [           # Q13.4 → Q38 → 65%
         ("Tortilla de maíz",  6),
-        ("Pechuga de pollo",  0.7937),
-        ("Cebolla",           0.1323),
-        ("Cilantro",          0.0661),
-        ("Chile pimiento",    0.0992),   # 0.015 kg * 3 * 2.20462
+        ("Pechuga de pollo",  0.33),
+        ("Cebolla",           0.03),
+        ("Cilantro",          0.01),
+        ("Chile pimiento",    0.02),
     ],
-    "Taco de Chorizo": [         # 3 tacos
+    "Taco de Chorizo": [         # Q14.1 → Q40 → 65%
         ("Tortilla de maíz",  6),
-        ("Chorizo chapín",    0.6614),   # 0.100 kg * 3 * 2.20462
-        ("Frijoles negros",   0.3307),   # 0.050 kg * 3 * 2.20462
-        ("Cebolla",           0.1323),
+        ("Chorizo chapín",    0.30),
+        ("Frijoles negros",   0.08),
+        ("Cebolla",           0.03),
     ],
-    "Taco de Birria": [          # 3 tacos
+    "Taco de Birria": [          # Q20.2 → Q48 → 58%
         ("Tortilla de maíz",  6),
-        ("Carne de res",      0.9921),   # 0.150 kg * 3 * 2.20462
-        ("Chile guaque",      0.1323),
-        ("Cebolla",           0.1984),
-        ("Cilantro",          0.0661),
+        ("Carne de res",      0.35),
+        ("Chile guaque",      0.04),
+        ("Cebolla",           0.04),
+        ("Cilantro",          0.01),
     ],
-    "Quesadilla de Queso": [
+    "Quesadilla de Queso": [     # Q5.6 → Q32 → 83%
         ("Tortilla de maíz",  2),
-        ("Queso blanco",      0.2205),   # 0.100 kg * 2.20462
+        ("Queso blanco",      0.20),
     ],
-    "Quesadilla al Pastor": [
+    "Quesadilla al Pastor": [    # Q9.2 → Q42 → 78%
         ("Tortilla de maíz",  2),
-        ("Queso blanco",      0.1764),   # 0.080 kg * 2.20462
-        ("Carne de marrano",  0.2205),   # 0.100 kg * 2.20462
-        ("Piña",              0.0882),   # 0.040 kg * 2.20462
+        ("Queso blanco",      0.15),
+        ("Carne de marrano",  0.15),
+        ("Piña",              0.05),
     ],
-    "Quesadilla de Pollo": [
+    "Quesadilla de Pollo": [     # Q8.4 → Q40 → 79%
         ("Tortilla de maíz",  2),
-        ("Queso blanco",      0.1764),
-        ("Pechuga de pollo",  0.2205),
+        ("Queso blanco",      0.15),
+        ("Pechuga de pollo",  0.15),
     ],
-    "Guacamol": [
-        ("Aguacate",   1),
-        ("Cebolla",    0.0441),   # 0.020 kg * 2.20462
-        ("Cilantro",   0.0220),   # 0.010 kg * 2.20462
-        ("Limón",      0.500),
-        ("Sal",        0.0110),   # 0.005 kg * 2.20462
+    "Guacamol": [                # Q5.7 → Q22 → 74%
+        ("Aguacate",          1),
+        ("Cebolla",           0.03),
+        ("Cilantro",          0.01),
+        ("Limón",             1),
+        ("Sal",               0.005),
     ],
 }
 
