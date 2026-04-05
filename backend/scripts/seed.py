@@ -55,106 +55,110 @@ CATEGORIAS = [
 ]
 
 # (nombre, descripcion, precio, categoria)
+# Tacos: porciones de 3 tacos
 PRODUCTOS = [
-    # Tacos
-    ("Taco al Pastor",       "Carne de marrano marinada con piña y especias",   25.00, "Tacos"),
-    ("Taco de Carne Asada",  "Res a la parrilla con cebolla y cilantro",         28.00, "Tacos"),
-    ("Taco de Pollo",        "Pollo a la plancha con chile pimiento",             22.00, "Tacos"),
-    ("Taco de Chorizo",      "Chorizo chapín con frijoles volteados",             24.00, "Tacos"),
-    ("Taco de Birria",       "Carne de res estofada en salsa roja",               30.00, "Tacos"),
+    # Tacos (porción = 3 tacos)
+    ("Taco al Pastor",       "Porción de 3 tacos al pastor con carne de marrano, piña y especias",  40.00, "Tacos"),
+    ("Taco de Carne Asada",  "Porción de 3 tacos de res a la parrilla con cebolla y cilantro",      45.00, "Tacos"),
+    ("Taco de Pollo",        "Porción de 3 tacos de pollo a la plancha con chile pimiento",         38.00, "Tacos"),
+    ("Taco de Chorizo",      "Porción de 3 tacos de chorizo chapín con frijoles volteados",         40.00, "Tacos"),
+    ("Taco de Birria",       "Porción de 3 tacos de birria, carne estofada en salsa roja",          48.00, "Tacos"),
     # Quesadillas
-    ("Quesadilla de Queso",  "Queso blanco fundido en tortilla de maíz",         30.00, "Quesadillas"),
-    ("Quesadilla al Pastor", "Queso blanco + carne al pastor",                   38.00, "Quesadillas"),
-    ("Quesadilla de Pollo",  "Queso blanco + pollo a la plancha",                35.00, "Quesadillas"),
+    ("Quesadilla de Queso",  "Queso blanco fundido en tortilla de maíz",                            32.00, "Quesadillas"),
+    ("Quesadilla al Pastor", "Queso blanco + carne al pastor en tortilla de maíz",                  42.00, "Quesadillas"),
+    ("Quesadilla de Pollo",  "Queso blanco + pollo a la plancha en tortilla de maíz",               40.00, "Quesadillas"),
     # Bebidas
-    ("Agua Fresca",          "Sabor del día (1 litro)",                           20.00, "Bebidas"),
-    ("Refresco",             "350 ml",                                            18.00, "Bebidas"),
-    ("Horchata",             "Horchata de arroz (500 ml)",                        25.00, "Bebidas"),
+    ("Agua Fresca",          "Sabor del día (1 litro)",                                              20.00, "Bebidas"),
+    ("Refresco",             "350 ml",                                                               18.00, "Bebidas"),
+    ("Horchata",             "Horchata de arroz (500 ml)",                                           25.00, "Bebidas"),
     # Extras
-    ("Guacamol",             "100 g de guacamol fresco",                          20.00, "Extras"),
-    ("Salsa Roja",           "Porción de salsa roja picante",                      8.00, "Extras"),
-    ("Salsa Verde",          "Porción de salsa verde",                             8.00, "Extras"),
-    ("Tortillas extra (3)",  "Tres tortillas de maíz",                            10.00, "Extras"),
+    ("Guacamol",             "100 g de guacamol fresco",                                             22.00, "Extras"),
+    ("Salsa Roja",           "Porción de salsa roja picante",                                         8.00, "Extras"),
+    ("Salsa Verde",          "Porción de salsa verde",                                                8.00, "Extras"),
+    ("Tortillas extra (3)",  "Tres tortillas de maíz",                                              10.00, "Extras"),
 ]
 
 # (nombre, unidad, costo_unitario, stock_inicial, stock_minimo)
+# Ingredientes en libras (lb). 1 lb = 0.453592 kg
 INGREDIENTES = [
-    ("Tortilla de maíz",    "unidad",  0.80,   500,  100),
-    ("Carne de marrano",    "kg",     75.00,   10.0,   2.0),
-    ("Carne de res",        "kg",     90.00,    8.0,   2.0),
-    ("Pechuga de pollo",    "kg",     60.00,    8.0,   2.0),
-    ("Chorizo chapín",      "kg",     80.00,    5.0,   1.0),
-    ("Queso blanco",        "kg",     55.00,    5.0,   1.0),
-    ("Cebolla",             "kg",     10.00,    5.0,   1.0),
-    ("Cilantro",            "kg",     12.00,    2.0,   0.5),
-    ("Tomate",              "kg",     10.00,    5.0,   1.0),
-    ("Chile guaque",        "kg",     45.00,    2.0,   0.5),
-    ("Chile pimiento",      "kg",     20.00,    2.0,   0.5),
-    ("Piña",                "kg",     15.00,    3.0,   0.5),
-    ("Aguacate",            "unidad",  8.00,   30,    10),
-    ("Limón",               "unidad",  0.50,   50,    10),
-    ("Frijoles negros",     "kg",     12.00,    5.0,   1.0),
-    ("Crema",               "litro",  22.00,    2.0,   0.5),
-    ("Sal",                 "kg",      4.00,    2.0,   0.5),
-    ("Aceite",              "litro",  20.00,    3.0,   1.0),
+    ("Tortilla de maíz",    "unidad",  0.80,   500,   100),
+    ("Carne de marrano",    "lb",     34.00,    22.0,   4.5),
+    ("Carne de res",        "lb",     41.00,    18.0,   4.5),
+    ("Pechuga de pollo",    "lb",     27.00,    18.0,   4.5),
+    ("Chorizo chapín",      "lb",     36.00,    11.0,   2.2),
+    ("Queso blanco",        "lb",     25.00,    11.0,   2.2),
+    ("Cebolla",             "lb",      4.50,    11.0,   2.2),
+    ("Cilantro",            "lb",      5.50,     4.5,   1.0),
+    ("Tomate",              "lb",      4.50,    11.0,   2.2),
+    ("Chile guaque",        "lb",     20.00,     4.5,   1.0),
+    ("Chile pimiento",      "lb",      9.00,     4.5,   1.0),
+    ("Piña",                "lb",      7.00,     7.0,   1.0),
+    ("Aguacate",            "unidad",  8.00,    30,    10),
+    ("Limón",               "unidad",  0.50,    50,    10),
+    ("Frijoles negros",     "lb",      5.50,    11.0,   2.2),
+    ("Crema",               "litro",  22.00,     2.0,   0.5),
+    ("Sal",                 "lb",      2.00,     4.5,   1.0),
+    ("Aceite",              "litro",  20.00,     3.0,   1.0),
 ]
 
 # {nombre_producto: [(nombre_ingrediente, cantidad), ...]}
+# Recetas en lb. Tacos = porción de 3 tacos (cantidades x3 vs un solo taco).
+# Conversión: cantidad_kg * 2.20462 * 3 (tacos) o * 2.20462 (otros)
 RECETAS = {
-    "Taco al Pastor": [
-        ("Tortilla de maíz",  2),
-        ("Carne de marrano",  0.120),
-        ("Piña",              0.030),
-        ("Cebolla",           0.020),
-        ("Cilantro",          0.010),
+    "Taco al Pastor": [          # 3 tacos
+        ("Tortilla de maíz",  6),
+        ("Carne de marrano",  0.7937),   # 0.120 kg * 3 * 2.20462
+        ("Piña",              0.1984),   # 0.030 kg * 3 * 2.20462
+        ("Cebolla",           0.1323),   # 0.020 kg * 3 * 2.20462
+        ("Cilantro",          0.0661),   # 0.010 kg * 3 * 2.20462
     ],
-    "Taco de Carne Asada": [
-        ("Tortilla de maíz",  2),
-        ("Carne de res",      0.120),
-        ("Cebolla",           0.020),
-        ("Cilantro",          0.010),
+    "Taco de Carne Asada": [     # 3 tacos
+        ("Tortilla de maíz",  6),
+        ("Carne de res",      0.7937),
+        ("Cebolla",           0.1323),
+        ("Cilantro",          0.0661),
     ],
-    "Taco de Pollo": [
-        ("Tortilla de maíz",  2),
-        ("Pechuga de pollo",  0.120),
-        ("Cebolla",           0.020),
-        ("Cilantro",          0.010),
-        ("Chile pimiento",    0.015),
+    "Taco de Pollo": [           # 3 tacos
+        ("Tortilla de maíz",  6),
+        ("Pechuga de pollo",  0.7937),
+        ("Cebolla",           0.1323),
+        ("Cilantro",          0.0661),
+        ("Chile pimiento",    0.0992),   # 0.015 kg * 3 * 2.20462
     ],
-    "Taco de Chorizo": [
-        ("Tortilla de maíz",  2),
-        ("Chorizo chapín",    0.100),
-        ("Frijoles negros",   0.050),
-        ("Cebolla",           0.020),
+    "Taco de Chorizo": [         # 3 tacos
+        ("Tortilla de maíz",  6),
+        ("Chorizo chapín",    0.6614),   # 0.100 kg * 3 * 2.20462
+        ("Frijoles negros",   0.3307),   # 0.050 kg * 3 * 2.20462
+        ("Cebolla",           0.1323),
     ],
-    "Taco de Birria": [
-        ("Tortilla de maíz",  2),
-        ("Carne de res",      0.150),
-        ("Chile guaque",      0.020),
-        ("Cebolla",           0.030),
-        ("Cilantro",          0.010),
+    "Taco de Birria": [          # 3 tacos
+        ("Tortilla de maíz",  6),
+        ("Carne de res",      0.9921),   # 0.150 kg * 3 * 2.20462
+        ("Chile guaque",      0.1323),
+        ("Cebolla",           0.1984),
+        ("Cilantro",          0.0661),
     ],
     "Quesadilla de Queso": [
         ("Tortilla de maíz",  2),
-        ("Queso blanco",      0.100),
+        ("Queso blanco",      0.2205),   # 0.100 kg * 2.20462
     ],
     "Quesadilla al Pastor": [
         ("Tortilla de maíz",  2),
-        ("Queso blanco",      0.080),
-        ("Carne de marrano",  0.100),
-        ("Piña",              0.020),
+        ("Queso blanco",      0.1764),   # 0.080 kg * 2.20462
+        ("Carne de marrano",  0.2205),   # 0.100 kg * 2.20462
+        ("Piña",              0.0882),   # 0.040 kg * 2.20462
     ],
     "Quesadilla de Pollo": [
         ("Tortilla de maíz",  2),
-        ("Queso blanco",      0.080),
-        ("Pechuga de pollo",  0.100),
+        ("Queso blanco",      0.1764),
+        ("Pechuga de pollo",  0.2205),
     ],
     "Guacamol": [
         ("Aguacate",   1),
-        ("Cebolla",    0.020),
-        ("Cilantro",   0.010),
+        ("Cebolla",    0.0441),   # 0.020 kg * 2.20462
+        ("Cilantro",   0.0220),   # 0.010 kg * 2.20462
         ("Limón",      0.500),
-        ("Sal",        0.005),
+        ("Sal",        0.0110),   # 0.005 kg * 2.20462
     ],
 }
 
