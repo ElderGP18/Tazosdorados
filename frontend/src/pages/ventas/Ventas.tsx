@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plus, Search, ChevronDown, AlertTriangle } from 'lucide-react'
+import { Plus, Search, ChevronDown, AlertTriangle, Minus, Trash2, ShoppingCart } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { subDays, startOfWeek, startOfMonth } from 'date-fns'
 import { today as gtToday, toDateInput } from '../../utils/format'
 import { getVentas, createVenta } from '../../api/ventas'
-import { getProductos } from '../../api/productos'
+import { getProductos, getCategorias } from '../../api/productos'
 import { verificarStockVenta, type AdvertenciaStock } from '../../api/stock'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Modal } from '../../components/ui/Modal'
@@ -15,12 +15,19 @@ import { getErrorMessage } from '../../api/client'
 import type { Venta, Producto } from '../../types'
 
 type Filtro = 'hoy' | 'semana' | 'mes' | 'personalizado'
+type CartItem = { producto_id: number; cantidad: number; precio_unitario: number }
 
 const METODOS_PAGO = ['efectivo', 'tarjeta', 'transferencia']
+const CAT_ORDER = ['Tacos', 'Quesadillas', 'Bebidas', 'Extras']
+
+// Guarniciones que se agregan automáticamente al añadir un taco
+const GARNISH_NAMES = ['Guacamol', 'Salsa Roja', 'Salsa Verde', 'Limón']
+const isTaco = (nombre: string) => nombre.startsWith('Taco ')
 
 export default function Ventas() {
   const [ventas, setVentas] = useState<Venta[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
+  const [catMap, setCatMap] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
@@ -28,11 +35,12 @@ export default function Ventas() {
   const [fechaDesde, setFechaDesde] = useState(gtToday())
   const [fechaHasta, setFechaHasta] = useState(gtToday())
   const [detailOpen, setDetailOpen] = useState<Venta | null>(null)
+  const [activeCat, setActiveCat] = useState<string>('Tacos')
 
-  // Form state
+  // Carrito
+  const [items, setItems] = useState<CartItem[]>([])
   const [metodoPago, setMetodoPago] = useState('efectivo')
   const [notas, setNotas] = useState('')
-  const [items, setItems] = useState<Array<{ producto_id: number; cantidad: number; precio_unitario: number }>>([])
   const [advertencias, setAdvertencias] = useState<AdvertenciaStock[]>([])
   const verificarTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -47,50 +55,66 @@ export default function Ventas() {
   }
 
   useEffect(() => {
-    getProductos().then(({ data }) => setProductos(data))
+    Promise.all([getProductos(), getCategorias()]).then(([pRes, cRes]) => {
+      setProductos(pRes.data)
+      const map: Record<number, string> = {}
+      cRes.data.forEach((c) => { map[c.id] = c.nombre })
+      setCatMap(map)
+    })
   }, [])
 
   useEffect(() => {
     const today = gtToday()
     if (filtro === 'hoy') {
-      setFechaDesde(today); setFechaHasta(today)
-      fetchVentas(today, today)
+      setFechaDesde(today); setFechaHasta(today); fetchVentas(today, today)
     } else if (filtro === 'semana') {
       const desde = toDateInput(startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString())
-      setFechaDesde(desde); setFechaHasta(today)
-      fetchVentas(desde, today)
+      setFechaDesde(desde); setFechaHasta(today); fetchVentas(desde, today)
     } else if (filtro === 'mes') {
       const desde = toDateInput(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
-      setFechaDesde(desde); setFechaHasta(today)
-      fetchVentas(desde, today)
+      setFechaDesde(desde); setFechaHasta(today); fetchVentas(desde, today)
     }
   }, [filtro])
 
   const applyPersonalizado = () => fetchVentas(fechaDesde, fechaHasta)
 
-  const addItem = () => {
-    if (productos.length === 0) return
-    const p = productos[0]
-    setItems((prev) => [...prev, { producto_id: p.id, cantidad: 1, precio_unitario: Number(p.precio) }])
-  }
-
-  const updateItem = (idx: number, field: string, value: string | number) => {
-    setItems((prev) => prev.map((item, i) => {
-      if (i !== idx) return item
-      const updated = { ...item, [field]: value }
-      if (field === 'producto_id') {
-        const p = productos.find((pr) => pr.id === Number(value))
-        if (p) updated.precio_unitario = Number(p.precio)
+  // Agregar producto al carrito, con auto-guarniciones para tacos
+  const addToCart = (product: Producto) => {
+    setItems((prev) => {
+      const next = [...prev]
+      const idx = next.findIndex((i) => i.producto_id === product.id)
+      if (idx >= 0) {
+        next[idx] = { ...next[idx], cantidad: next[idx].cantidad + 1 }
+      } else {
+        next.push({ producto_id: product.id, cantidad: 1, precio_unitario: Number(product.precio) })
       }
-      return updated
-    }))
+      // Auto-agregar guarniciones al primer taco de la orden
+      if (isTaco(product.nombre)) {
+        const garnishes = productos.filter((p) => GARNISH_NAMES.includes(p.nombre))
+        for (const g of garnishes) {
+          if (!next.some((i) => i.producto_id === g.id)) {
+            next.push({ producto_id: g.id, cantidad: 1, precio_unitario: 0 })
+          }
+        }
+      }
+      return next
+    })
   }
 
-  const removeItem = (idx: number) => setItems((prev) => prev.filter((_, i) => i !== idx))
+  const updateQty = (producto_id: number, delta: number) => {
+    setItems((prev) =>
+      prev
+        .map((i) => i.producto_id === producto_id ? { ...i, cantidad: i.cantidad + delta } : i)
+        .filter((i) => i.cantidad > 0)
+    )
+  }
+
+  const removeItem = (producto_id: number) =>
+    setItems((prev) => prev.filter((i) => i.producto_id !== producto_id))
 
   const total = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
 
-  // Verificar stock cada vez que cambian los items (debounce 400ms)
+  // Verificar stock (debounce)
   useEffect(() => {
     if (verificarTimer.current) clearTimeout(verificarTimer.current)
     if (items.length === 0) { setAdvertencias([]); return }
@@ -100,11 +124,14 @@ export default function Ventas() {
           items.map((i) => ({ producto_id: i.producto_id, cantidad: i.cantidad }))
         )
         setAdvertencias(data.advertencias)
-      } catch {
-        setAdvertencias([])
-      }
+      } catch { setAdvertencias([]) }
     }, 400)
   }, [items])
+
+  const openModal = () => {
+    setItems([]); setNotas(''); setMetodoPago('efectivo')
+    setAdvertencias([]); setActiveCat('Tacos'); setModalOpen(true)
+  }
 
   const handleSave = async () => {
     if (items.length === 0) { toast.error('Agrega al menos un producto'); return }
@@ -113,7 +140,6 @@ export default function Ventas() {
       await createVenta({ metodo_pago: metodoPago, notas, detalles: items })
       toast.success('Venta registrada')
       setModalOpen(false)
-      setItems([]); setNotas(''); setMetodoPago('efectivo'); setAdvertencias([])
       fetchVentas(fechaDesde, fechaHasta)
     } catch (err) {
       toast.error(getErrorMessage(err))
@@ -124,13 +150,21 @@ export default function Ventas() {
 
   const totalFiltrado = ventas.reduce((s, v) => s + Number(v.total), 0)
 
+  // Productos por categoría activa
+  const prodsByCat = productos.filter(
+    (p) => catMap[p.categoria_id ?? 0] === activeCat
+  )
+
+  const nombreProd = (id: number) => productos.find((p) => p.id === id)?.nombre ?? `Prod. #${id}`
+  const isGarnish = (nombre: string) => GARNISH_NAMES.includes(nombre)
+
   return (
     <div>
       <PageHeader
         title="Ventas"
         description="Registro y consulta de ventas"
         action={
-          <button onClick={() => { setModalOpen(true); setItems([]); setAdvertencias([]) }} className="btn-primary">
+          <button onClick={openModal} className="btn-primary">
             <Plus size={16} /> Nueva venta
           </button>
         }
@@ -193,15 +227,10 @@ export default function Ventas() {
                     <td className="table-td text-gray-400 font-mono">#{v.id}</td>
                     <td className="table-td">{formatDateTime(v.fecha)}</td>
                     <td className="table-td">{v.detalles?.length ?? '—'} productos</td>
-                    <td className="table-td">
-                      <Badge variant="gray">{v.metodo_pago}</Badge>
-                    </td>
+                    <td className="table-td"><Badge variant="gray">{v.metodo_pago}</Badge></td>
                     <td className="table-td font-semibold text-gray-900">{formatCurrency(Number(v.total))}</td>
                     <td className="table-td">
-                      <button
-                        onClick={() => setDetailOpen(v)}
-                        className="text-brand-600 hover:text-brand-700 text-xs font-medium flex items-center gap-1"
-                      >
+                      <button onClick={() => setDetailOpen(v)} className="text-brand-600 hover:text-brand-700 text-xs font-medium flex items-center gap-1">
                         Ver <ChevronDown size={12} />
                       </button>
                     </td>
@@ -213,92 +242,163 @@ export default function Ventas() {
         )}
       </div>
 
-      {/* Modal nueva venta */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Registrar venta" size="lg">
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Método de pago</label>
-              <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="form-select">
-                {METODOS_PAGO.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="form-label">Notas (opcional)</label>
-              <input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Comentario..." className="form-input" />
-            </div>
-          </div>
+      {/* ── Modal nueva venta (POS) ─────────────────────────────────────────── */}
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Nueva venta" size="xl">
+        <div className="flex flex-col gap-4" style={{ minHeight: '480px' }}>
+          <div className="flex gap-4 flex-1">
 
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="form-label !mb-0">Productos</label>
-              <button onClick={addItem} className="btn-ghost text-xs py-1 px-2">
-                <Plus size={13} /> Agregar
-              </button>
-            </div>
-            {items.length === 0 ? (
-              <div className="border-2 border-dashed border-gray-200 rounded-lg py-6 text-center text-sm text-gray-400">
-                Agrega productos a la venta
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {items.map((item, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                    <select
-                      value={item.producto_id}
-                      onChange={(e) => updateItem(idx, 'producto_id', Number(e.target.value))}
-                      className="form-select col-span-5"
-                    >
-                      {productos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                    </select>
-                    <input
-                      type="number" min={1} value={item.cantidad}
-                      onChange={(e) => updateItem(idx, 'cantidad', Number(e.target.value))}
-                      className="form-input col-span-2 text-center"
-                    />
-                    <input
-                      type="number" step="0.01" value={item.precio_unitario}
-                      onChange={(e) => updateItem(idx, 'precio_unitario', Number(e.target.value))}
-                      className="form-input col-span-3"
-                    />
-                    <span className="col-span-1 text-xs text-gray-500 text-right">
-                      Q{(item.cantidad * item.precio_unitario).toFixed(0)}
-                    </span>
-                    <button onClick={() => removeItem(idx)} className="col-span-1 text-red-400 hover:text-red-600 text-xs text-center">✕</button>
-                  </div>
+            {/* Izquierda: selector de productos */}
+            <div className="flex-1 flex flex-col gap-3">
+              {/* Tabs de categoría */}
+              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                {CAT_ORDER.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCat(cat)}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                      activeCat === cat ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {cat}
+                  </button>
                 ))}
               </div>
-            )}
+
+              {/* Grid de productos */}
+              <div className="grid grid-cols-2 gap-2">
+                {prodsByCat.map((p) => {
+                  const inCart = items.find((i) => i.producto_id === p.id)
+                  const garnish = isGarnish(p.nombre)
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => addToCart(p)}
+                      className={`relative text-left rounded-xl border px-3 py-3 transition-all hover:shadow-md active:scale-95 ${
+                        inCart
+                          ? 'border-brand-400 bg-brand-50 shadow-sm'
+                          : garnish
+                          ? 'border-green-200 bg-green-50 hover:border-green-400'
+                          : 'border-gray-200 bg-white hover:border-brand-300'
+                      }`}
+                    >
+                      {inCart && (
+                        <span className="absolute top-2 right-2 bg-brand-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                          {inCart.cantidad}
+                        </span>
+                      )}
+                      <p className={`text-sm font-semibold leading-tight pr-6 ${garnish ? 'text-green-800' : 'text-gray-800'}`}>
+                        {p.nombre}
+                      </p>
+                      <p className={`text-xs mt-0.5 font-medium ${garnish || p.precio == 0 ? 'text-green-600' : 'text-brand-600'}`}>
+                        {p.precio == 0 ? 'Gratis' : formatCurrency(Number(p.precio))}
+                      </p>
+                      {isTaco(p.nombre) && (
+                        <p className="text-xs text-gray-400 mt-0.5">+ guarniciones auto</p>
+                      )}
+                    </button>
+                  )
+                })}
+                {prodsByCat.length === 0 && (
+                  <p className="col-span-2 text-center text-sm text-gray-400 py-8">Sin productos en esta categoría</p>
+                )}
+              </div>
+            </div>
+
+            {/* Derecha: carrito */}
+            <div className="w-64 flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <ShoppingCart size={15} className="text-gray-500" />
+                <span className="text-sm font-semibold text-gray-700">Orden</span>
+                {items.length > 0 && (
+                  <span className="ml-auto text-xs text-gray-400">{items.length} items</span>
+                )}
+              </div>
+
+              {items.length === 0 ? (
+                <div className="flex-1 border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center">
+                  <p className="text-sm text-gray-400 text-center px-4">Toca un producto para agregarlo</p>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-y-auto space-y-1.5 max-h-72">
+                  {items.map((item) => {
+                    const prod = productos.find((p) => p.id === item.producto_id)
+                    const garnish = prod ? isGarnish(prod.nombre) : false
+                    return (
+                      <div
+                        key={item.producto_id}
+                        className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${
+                          garnish ? 'bg-green-50 border border-green-100' : 'bg-gray-50 border border-gray-100'
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-gray-800 truncate">{nombreProd(item.producto_id)}</p>
+                          <p className={`text-xs ${garnish ? 'text-green-600' : 'text-brand-600'}`}>
+                            {item.precio_unitario === 0 ? 'Gratis' : formatCurrency(item.precio_unitario)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => updateQty(item.producto_id, -1)}
+                            className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
+                          >
+                            <Minus size={10} />
+                          </button>
+                          <span className="text-xs font-semibold w-4 text-center">{item.cantidad}</span>
+                          <button
+                            onClick={() => updateQty(item.producto_id, 1)}
+                            className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
+                          >
+                            <Plus size={10} />
+                          </button>
+                          <button
+                            onClick={() => removeItem(item.producto_id)}
+                            className="w-5 h-5 rounded-full text-red-400 hover:text-red-600 flex items-center justify-center ml-0.5"
+                          >
+                            <Trash2 size={10} />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Método de pago */}
+              <div>
+                <label className="form-label text-xs">Método de pago</label>
+                <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="form-select text-sm">
+                  {METODOS_PAGO.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="form-label text-xs">Notas</label>
+                <input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Comentario..." className="form-input text-sm" />
+              </div>
+            </div>
           </div>
 
-          {/* Advertencias de stock insuficiente */}
+          {/* Advertencias de stock */}
           {advertencias.length > 0 && (
-            <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 space-y-1.5">
+            <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 space-y-1">
               <div className="flex items-center gap-2 mb-1">
-                <AlertTriangle size={15} className="text-orange-600 flex-shrink-0" />
-                <p className="text-sm font-semibold text-orange-800">Stock insuficiente para esta venta</p>
+                <AlertTriangle size={14} className="text-orange-600 flex-shrink-0" />
+                <p className="text-xs font-semibold text-orange-800">Stock insuficiente</p>
               </div>
               {advertencias.map((a) => (
-                <div key={a.ingrediente} className="flex items-center justify-between text-xs text-orange-700 bg-orange-100 rounded-lg px-3 py-1.5">
+                <div key={a.ingrediente} className="flex items-center justify-between text-xs text-orange-700 bg-orange-100 rounded px-2 py-1">
                   <span className="font-medium">{a.ingrediente}</span>
-                  <span>
-                    Disponible: <span className="font-semibold">{a.disponible} {a.unidad_medida}</span>
-                    {' · '}
-                    Necesario: <span className="font-semibold">{a.necesario} {a.unidad_medida}</span>
-                    {' · '}
-                    <span className="text-red-600 font-semibold">Falta: {a.faltante} {a.unidad_medida}</span>
-                  </span>
+                  <span>Disp: {a.disponible} · Necesario: {a.necesario} · <span className="text-red-600 font-semibold">Falta: {a.faltante}</span></span>
                 </div>
               ))}
-              <p className="text-xs text-orange-600 pt-0.5">Puedes continuar de todas formas o revisar el stock primero.</p>
             </div>
           )}
 
+          {/* Footer */}
           <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-            <span className="text-lg font-bold text-gray-900">Total: {formatCurrency(total)}</span>
+            <span className="text-xl font-bold text-gray-900">Total: {formatCurrency(total)}</span>
             <div className="flex gap-3">
               <button onClick={() => setModalOpen(false)} className="btn-secondary">Cancelar</button>
-              <button onClick={handleSave} className="btn-primary" disabled={saving}>
+              <button onClick={handleSave} className="btn-primary" disabled={saving || items.length === 0}>
                 {saving ? <Spinner size="sm" className="text-white" /> : 'Guardar venta'}
               </button>
             </div>
@@ -324,7 +424,7 @@ export default function Ventas() {
               <tbody>
                 {detailOpen.detalles?.map((d) => (
                   <tr key={d.id} className="border-b border-gray-50">
-                    <td className="py-2 text-gray-700">Prod. #{d.producto_id}</td>
+                    <td className="py-2 text-gray-700">{nombreProd(d.producto_id)}</td>
                     <td className="py-2 text-center">{d.cantidad}</td>
                     <td className="py-2 text-right font-medium">{formatCurrency(Number(d.subtotal))}</td>
                   </tr>
