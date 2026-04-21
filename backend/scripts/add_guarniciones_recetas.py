@@ -55,7 +55,7 @@ def get_or_create_product(db, nombre, descripcion, precio, categoria_nombre):
         db.flush()
         cat = db.execute(text("SELECT id FROM categorias WHERE nombre = :n"), {"n": categoria_nombre}).fetchone()
     db.execute(
-        text("INSERT INTO productos (nombre, descripcion, precio, categoria_id, activo) VALUES (:n, :d, :p, :c, 1)"),
+        text("INSERT INTO productos (nombre, descripcion, precio, categoria_id, activo, created_at, updated_at) VALUES (:n, :d, :p, :c, 1, NOW(), NOW())"),
         {"n": nombre, "d": descripcion, "p": precio, "c": cat[0]},
     )
     db.flush()
