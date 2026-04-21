@@ -20,9 +20,38 @@ type CartItem = { producto_id: number; cantidad: number; precio_unitario: number
 const METODOS_PAGO = ['efectivo', 'tarjeta', 'transferencia']
 const CAT_ORDER = ['Tacos', 'Quesadillas', 'Bebidas', 'Extras']
 
-// Guarniciones que se agregan automáticamente al añadir un taco
-const GARNISH_NAMES = ['Guacamol', 'Salsa Roja', 'Salsa Verde', 'Limón']
-const isTaco = (nombre: string) => nombre.startsWith('Taco ')
+// Guarniciones automáticas (cantidad = suma de porciones principales)
+const GARNISH_NAMES = ['Guacamol', 'Salsa Roja', 'Salsa Verde', 'Limón', 'Picante']
+const isMain = (nombre: string) => nombre.startsWith('Taco ') || nombre.startsWith('Quesadilla ')
+const isGarnishName = (nombre: string) => GARNISH_NAMES.includes(nombre)
+
+// Recalcula guarniciones: qty = suma de todas las porciones principales
+const syncGarnishes = (cart: CartItem[], allProducts: Producto[]): CartItem[] => {
+  const mainQty = cart
+    .filter((i) => {
+      const p = allProducts.find((p) => p.id === i.producto_id)
+      return p && isMain(p.nombre)
+    })
+    .reduce((sum, i) => sum + i.cantidad, 0)
+
+  // Quitar guarniciones existentes del carrito
+  const withoutGarnish = cart.filter((i) => {
+    const p = allProducts.find((p) => p.id === i.producto_id)
+    return !p || !isGarnishName(p.nombre)
+  })
+
+  if (mainQty === 0) return withoutGarnish
+
+  // Agregar guarniciones con la cantidad correcta
+  const garnishes = allProducts.filter((p) => isGarnishName(p.nombre))
+  const garnishItems: CartItem[] = garnishes.map((g) => ({
+    producto_id: g.id,
+    cantidad: mainQty,
+    precio_unitario: 0,
+  }))
+
+  return [...withoutGarnish, ...garnishItems]
+}
 
 export default function Ventas() {
   const [ventas, setVentas] = useState<Venta[]>([])
@@ -78,8 +107,10 @@ export default function Ventas() {
 
   const applyPersonalizado = () => fetchVentas(fechaDesde, fechaHasta)
 
-  // Agregar producto al carrito, con auto-guarniciones para tacos
+  // Agregar producto al carrito y recalcular guarniciones
   const addToCart = (product: Producto) => {
+    // No permitir agregar guarniciones manualmente (se manejan solas)
+    if (isGarnishName(product.nombre)) return
     setItems((prev) => {
       const next = [...prev]
       const idx = next.findIndex((i) => i.producto_id === product.id)
@@ -88,29 +119,30 @@ export default function Ventas() {
       } else {
         next.push({ producto_id: product.id, cantidad: 1, precio_unitario: Number(product.precio) })
       }
-      // Auto-agregar guarniciones al primer taco de la orden
-      if (isTaco(product.nombre)) {
-        const garnishes = productos.filter((p) => GARNISH_NAMES.includes(p.nombre))
-        for (const g of garnishes) {
-          if (!next.some((i) => i.producto_id === g.id)) {
-            next.push({ producto_id: g.id, cantidad: 1, precio_unitario: 0 })
-          }
-        }
-      }
-      return next
+      return syncGarnishes(next, productos)
     })
   }
 
   const updateQty = (producto_id: number, delta: number) => {
-    setItems((prev) =>
-      prev
+    setItems((prev) => {
+      const prod = productos.find((p) => p.id === producto_id)
+      // No editar cantidad de guarniciones manualmente
+      if (prod && isGarnishName(prod.nombre)) return prev
+      const next = prev
         .map((i) => i.producto_id === producto_id ? { ...i, cantidad: i.cantidad + delta } : i)
         .filter((i) => i.cantidad > 0)
-    )
+      return syncGarnishes(next, productos)
+    })
   }
 
-  const removeItem = (producto_id: number) =>
-    setItems((prev) => prev.filter((i) => i.producto_id !== producto_id))
+  const removeItem = (producto_id: number) => {
+    setItems((prev) => {
+      const prod = productos.find((p) => p.id === producto_id)
+      if (prod && isGarnishName(prod.nombre)) return prev
+      const next = prev.filter((i) => i.producto_id !== producto_id)
+      return syncGarnishes(next, productos)
+    })
+  }
 
   const total = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
 
@@ -156,7 +188,6 @@ export default function Ventas() {
   )
 
   const nombreProd = (id: number) => productos.find((p) => p.id === id)?.nombre ?? `Prod. #${id}`
-  const isGarnish = (nombre: string) => GARNISH_NAMES.includes(nombre)
 
   return (
     <div>
@@ -268,7 +299,7 @@ export default function Ventas() {
               <div className="grid grid-cols-2 gap-2">
                 {prodsByCat.map((p) => {
                   const inCart = items.find((i) => i.producto_id === p.id)
-                  const garnish = isGarnish(p.nombre)
+                  const garnish = isGarnishName(p.nombre)
                   return (
                     <button
                       key={p.id}
@@ -292,7 +323,7 @@ export default function Ventas() {
                       <p className={`text-xs mt-0.5 font-medium ${garnish || p.precio == 0 ? 'text-green-600' : 'text-brand-600'}`}>
                         {p.precio == 0 ? 'Gratis' : formatCurrency(Number(p.precio))}
                       </p>
-                      {isTaco(p.nombre) && (
+                      {isMain(p.nombre) && (
                         <p className="text-xs text-gray-400 mt-0.5">+ guarniciones auto</p>
                       )}
                     </button>
@@ -322,7 +353,7 @@ export default function Ventas() {
                 <div className="flex-1 overflow-y-auto space-y-1.5 max-h-72">
                   {items.map((item) => {
                     const prod = productos.find((p) => p.id === item.producto_id)
-                    const garnish = prod ? isGarnish(prod.nombre) : false
+                    const garnish = prod ? isGarnishName(prod.nombre) : false
                     return (
                       <div
                         key={item.producto_id}
