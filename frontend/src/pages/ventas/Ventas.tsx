@@ -65,6 +65,7 @@ export default function Ventas() {
   const [fechaHasta, setFechaHasta] = useState(gtToday())
   const [detailOpen, setDetailOpen] = useState<Venta | null>(null)
   const [activeCat, setActiveCat] = useState<string>('Tacos')
+  const [mobileTab, setMobileTab] = useState<'productos' | 'orden'>('productos')
 
   // Carrito
   const [items, setItems] = useState<CartItem[]>([])
@@ -162,7 +163,7 @@ export default function Ventas() {
 
   const openModal = () => {
     setItems([]); setNotas(''); setMetodoPago('efectivo')
-    setAdvertencias([]); setActiveCat('Tacos'); setModalOpen(true)
+    setAdvertencias([]); setActiveCat('Tacos'); setMobileTab('productos'); setModalOpen(true)
   }
 
   const handleSave = async () => {
@@ -275,12 +276,34 @@ export default function Ventas() {
 
       {/* ── Modal nueva venta (POS) ─────────────────────────────────────────── */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Nueva venta" size="xl">
-        <div className="flex flex-col gap-4" style={{ minHeight: '480px' }}>
-          <div className="flex gap-4 flex-1">
+        <div className="flex flex-col gap-3">
 
-            {/* Izquierda: selector de productos */}
-            <div className="flex-1 flex flex-col gap-3">
-              {/* Tabs de categoría */}
+          {/* Tabs mobile: Productos / Orden */}
+          <div className="flex sm:hidden gap-1 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setMobileTab('productos')}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${mobileTab === 'productos' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
+            >
+              Productos
+            </button>
+            <button
+              onClick={() => setMobileTab('orden')}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors relative ${mobileTab === 'orden' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
+            >
+              Orden
+              {items.filter(i => !isGarnishName(productos.find(p => p.id === i.producto_id)?.nombre ?? '')).length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-brand-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                  {items.filter(i => !isGarnishName(productos.find(p => p.id === i.producto_id)?.nombre ?? '')).length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4" style={{ minHeight: '400px' }}>
+
+            {/* Selector de productos */}
+            <div className={`flex-1 flex flex-col gap-3 ${mobileTab === 'orden' ? 'hidden sm:flex' : 'flex'}`}>
+              {/* Tabs categoría */}
               <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
                 {CAT_ORDER.map((cat) => (
                   <button
@@ -296,14 +319,14 @@ export default function Ventas() {
               </div>
 
               {/* Grid de productos */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 overflow-y-auto" style={{ maxHeight: '340px' }}>
                 {prodsByCat.map((p) => {
                   const inCart = items.find((i) => i.producto_id === p.id)
                   const garnish = isGarnishName(p.nombre)
                   return (
                     <button
                       key={p.id}
-                      onClick={() => addToCart(p)}
+                      onClick={() => { addToCart(p); setMobileTab('orden') }}
                       className={`relative text-left rounded-xl border px-3 py-3 transition-all hover:shadow-md active:scale-95 ${
                         inCart
                           ? 'border-brand-400 bg-brand-50 shadow-sm'
@@ -320,8 +343,8 @@ export default function Ventas() {
                       <p className={`text-sm font-semibold leading-tight pr-6 ${garnish ? 'text-green-800' : 'text-gray-800'}`}>
                         {p.nombre}
                       </p>
-                      <p className={`text-xs mt-0.5 font-medium ${garnish || p.precio == 0 ? 'text-green-600' : 'text-brand-600'}`}>
-                        {p.precio == 0 ? 'Gratis' : formatCurrency(Number(p.precio))}
+                      <p className={`text-xs mt-0.5 font-medium ${garnish || Number(p.precio) === 0 ? 'text-green-600' : 'text-brand-600'}`}>
+                        {Number(p.precio) === 0 ? 'Gratis' : formatCurrency(Number(p.precio))}
                       </p>
                       {isMain(p.nombre) && (
                         <p className="text-xs text-gray-400 mt-0.5">+ guarniciones auto</p>
@@ -335,8 +358,8 @@ export default function Ventas() {
               </div>
             </div>
 
-            {/* Derecha: carrito */}
-            <div className="w-64 flex flex-col gap-3">
+            {/* Carrito */}
+            <div className={`sm:w-64 flex flex-col gap-3 ${mobileTab === 'productos' ? 'hidden sm:flex' : 'flex'}`}>
               <div className="flex items-center gap-2">
                 <ShoppingCart size={15} className="text-gray-500" />
                 <span className="text-sm font-semibold text-gray-700">Orden</span>
@@ -346,11 +369,11 @@ export default function Ventas() {
               </div>
 
               {items.length === 0 ? (
-                <div className="flex-1 border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center">
+                <div className="flex-1 border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center py-8">
                   <p className="text-sm text-gray-400 text-center px-4">Toca un producto para agregarlo</p>
                 </div>
               ) : (
-                <div className="flex-1 overflow-y-auto space-y-1.5 max-h-72">
+                <div className="flex-1 overflow-y-auto space-y-1.5" style={{ maxHeight: '260px' }}>
                   {items.map((item) => {
                     const prod = productos.find((p) => p.id === item.producto_id)
                     const garnish = prod ? isGarnishName(prod.nombre) : false
@@ -368,23 +391,14 @@ export default function Ventas() {
                           </p>
                         </div>
                         <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => updateQty(item.producto_id, -1)}
-                            className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
-                          >
+                          <button onClick={() => updateQty(item.producto_id, -1)} className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center">
                             <Minus size={10} />
                           </button>
-                          <span className="text-xs font-semibold w-4 text-center">{item.cantidad}</span>
-                          <button
-                            onClick={() => updateQty(item.producto_id, 1)}
-                            className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
-                          >
+                          <span className="text-xs font-semibold w-5 text-center">{item.cantidad}</span>
+                          <button onClick={() => updateQty(item.producto_id, 1)} className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center">
                             <Plus size={10} />
                           </button>
-                          <button
-                            onClick={() => removeItem(item.producto_id)}
-                            className="w-5 h-5 rounded-full text-red-400 hover:text-red-600 flex items-center justify-center ml-0.5"
-                          >
+                          <button onClick={() => removeItem(item.producto_id)} className="w-6 h-6 rounded-full text-red-400 hover:text-red-600 flex items-center justify-center ml-0.5">
                             <Trash2 size={10} />
                           </button>
                         </div>
@@ -394,7 +408,6 @@ export default function Ventas() {
                 </div>
               )}
 
-              {/* Método de pago */}
               <div>
                 <label className="form-label text-xs">Método de pago</label>
                 <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="form-select text-sm">
@@ -408,7 +421,7 @@ export default function Ventas() {
             </div>
           </div>
 
-          {/* Advertencias de stock */}
+          {/* Advertencias */}
           {advertencias.length > 0 && (
             <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 space-y-1">
               <div className="flex items-center gap-2 mb-1">
@@ -416,9 +429,9 @@ export default function Ventas() {
                 <p className="text-xs font-semibold text-orange-800">Stock insuficiente</p>
               </div>
               {advertencias.map((a) => (
-                <div key={a.ingrediente} className="flex items-center justify-between text-xs text-orange-700 bg-orange-100 rounded px-2 py-1">
+                <div key={a.ingrediente} className="flex flex-wrap items-center justify-between text-xs text-orange-700 bg-orange-100 rounded px-2 py-1 gap-1">
                   <span className="font-medium">{a.ingrediente}</span>
-                  <span>Disp: {a.disponible} · Necesario: {a.necesario} · <span className="text-red-600 font-semibold">Falta: {a.faltante}</span></span>
+                  <span>Disp: {a.disponible} · Need: {a.necesario} · <span className="text-red-600 font-semibold">Falta: {a.faltante}</span></span>
                 </div>
               ))}
             </div>
@@ -427,10 +440,10 @@ export default function Ventas() {
           {/* Footer */}
           <div className="flex items-center justify-between pt-3 border-t border-gray-100">
             <span className="text-xl font-bold text-gray-900">Total: {formatCurrency(total)}</span>
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <button onClick={() => setModalOpen(false)} className="btn-secondary">Cancelar</button>
               <button onClick={handleSave} className="btn-primary" disabled={saving || items.length === 0}>
-                {saving ? <Spinner size="sm" className="text-white" /> : 'Guardar venta'}
+                {saving ? <Spinner size="sm" className="text-white" /> : 'Guardar'}
               </button>
             </div>
           </div>

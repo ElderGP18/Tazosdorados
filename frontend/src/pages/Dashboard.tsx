@@ -3,7 +3,6 @@ import { ShoppingCart, TrendingUp, Package, AlertTriangle } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { subDays } from 'date-fns'
 import { StatsCard } from '../components/common/StatsCard'
 import { getVentas } from '../api/ventas'
 import { getStockAlertas } from '../api/stock'
@@ -15,6 +14,13 @@ import type { Venta, Stock, PrediccionDia, Ingrediente, Producto } from '../type
 import { Badge } from '../components/ui/Badge'
 import { Spinner } from '../components/ui/Spinner'
 
+// Suma/resta días a una fecha YYYY-MM-DD de forma segura (sin timezone)
+const addDaysToDate = (yyyy_mm_dd: string, n: number): string => {
+  const d = new Date(yyyy_mm_dd + 'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().substring(0, 10)
+}
+
 export default function Dashboard() {
   const [ventas, setVentas] = useState<Venta[]>([])
   const [alertas, setAlertas] = useState<Stock[]>([])
@@ -24,7 +30,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const desde = toDateInput(subDays(new Date(), 7).toISOString())
+    const desde = addDaysToDate(gtToday(), -7)
     Promise.allSettled([
       getVentas({ fecha_desde: desde, limit: 200 }),
       getStockAlertas(),
@@ -47,9 +53,9 @@ export default function Dashboard() {
   const totalHoy = ventasHoy.reduce((sum, v) => sum + Number(v.total), 0)
   const totalSemana = ventas.reduce((sum, v) => sum + Number(v.total), 0)
 
-  // Ventas por día para la gráfica (fechas en zona Guatemala)
+  // Ventas por día — usando fecha Guatemala como base para evitar desfase UTC
   const ultimos7 = Array.from({ length: 7 }, (_, i) => {
-    const key = toDateInput(subDays(new Date(), 6 - i).toISOString())
+    const key = addDaysToDate(todayGT, -(6 - i))
     const total = ventas
       .filter((v) => toDateInput(v.fecha) === key)
       .reduce((s, v) => s + Number(v.total), 0)

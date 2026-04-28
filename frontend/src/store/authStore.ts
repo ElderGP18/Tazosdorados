@@ -8,6 +8,7 @@ interface AuthState {
   setAuth: (user: AuthUser, token: string) => void
   clearAuth: () => void
   isAdmin: () => boolean
+  isVendedor: () => boolean
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -24,6 +25,7 @@ export const useAuthStore = create<AuthState>()(
         set({ user: null, token: null })
       },
       isAdmin: () => get().user?.rol === 'admin',
+      isVendedor: () => get().user?.rol === 'vendedor' || get().user?.rol === 'cajero',
     }),
     {
       name: 'auth-storage',

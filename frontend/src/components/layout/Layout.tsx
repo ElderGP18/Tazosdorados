@@ -16,14 +16,18 @@ export function Layout() {
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+          className="fixed inset-0 bg-black/60 z-20 lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* Sidebar — hidden on mobile unless open */}
+      {/* Sidebar */}
       <div className={`lg:block ${mobileOpen ? 'block' : 'hidden'}`}>
-        <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
+        <Sidebar
+          collapsed={collapsed}
+          onToggle={() => setCollapsed((c) => !c)}
+          onClose={() => setMobileOpen(false)}
+        />
       </div>
 
       {/* Main content */}
@@ -33,7 +37,7 @@ export function Layout() {
         }`}
       >
         <Header onMenuToggle={() => setMobileOpen((o) => !o)} />
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
           <Outlet />
         </main>
       </div>

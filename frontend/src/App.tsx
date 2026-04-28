@@ -13,6 +13,12 @@ import Predicciones from './pages/predicciones/Predicciones'
 import Recomendaciones from './pages/recomendaciones/Recomendaciones'
 import Merma from './pages/merma/Merma'
 import Reportes from './pages/reportes/Reportes'
+import { useAuthStore } from './store/authStore'
+
+function AdminOnly({ children }: { children: React.ReactNode }) {
+  const { isAdmin } = useAuthStore()
+  return isAdmin() ? <>{children}</> : <Navigate to="/dashboard" replace />
+}
 
 export default function App() {
   return (
@@ -32,15 +38,16 @@ export default function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard"       element={<Dashboard />} />
           <Route path="/ventas"          element={<Ventas />} />
-          <Route path="/productos"       element={<Productos />} />
-          <Route path="/ingredientes"    element={<Ingredientes />} />
-          <Route path="/recetas"         element={<Recetas />} />
           <Route path="/stock"           element={<Stock />} />
           <Route path="/movimientos"     element={<MovimientosStock />} />
-          <Route path="/predicciones"    element={<Predicciones />} />
-          <Route path="/recomendaciones" element={<Recomendaciones />} />
           <Route path="/merma"           element={<Merma />} />
-          <Route path="/reportes"        element={<Reportes />} />
+          {/* Solo admin */}
+          <Route path="/productos"       element={<AdminOnly><Productos /></AdminOnly>} />
+          <Route path="/ingredientes"    element={<AdminOnly><Ingredientes /></AdminOnly>} />
+          <Route path="/recetas"         element={<AdminOnly><Recetas /></AdminOnly>} />
+          <Route path="/predicciones"    element={<AdminOnly><Predicciones /></AdminOnly>} />
+          <Route path="/recomendaciones" element={<AdminOnly><Recomendaciones /></AdminOnly>} />
+          <Route path="/reportes"        element={<AdminOnly><Reportes /></AdminOnly>} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

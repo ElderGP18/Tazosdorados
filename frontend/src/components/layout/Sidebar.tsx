@@ -2,13 +2,14 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ShoppingCart, Package, Layers, BookOpen,
   Archive, TrendingUp, ShoppingBag, AlertTriangle, BarChart2,
-  LogOut, ChevronLeft, ChevronRight, Flame, ArrowLeftRight,
+  LogOut, ChevronLeft, ChevronRight, Flame, ArrowLeftRight, X,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 
 interface SidebarProps {
   collapsed: boolean
   onToggle: () => void
+  onClose?: () => void
 }
 
 interface NavItem {
@@ -21,18 +22,24 @@ interface NavItem {
 const navItems: NavItem[] = [
   { to: '/dashboard',       icon: <LayoutDashboard size={18} />, label: 'Dashboard' },
   { to: '/ventas',          icon: <ShoppingCart size={18} />,    label: 'Ventas' },
+  { to: '/stock',           icon: <Archive size={18} />,         label: 'Stock' },
+  { to: '/movimientos',     icon: <ArrowLeftRight size={18} />,  label: 'Movimientos' },
+  { to: '/merma',           icon: <AlertTriangle size={18} />,   label: 'Merma' },
   { to: '/productos',       icon: <Package size={18} />,         label: 'Productos',    adminOnly: true },
   { to: '/ingredientes',    icon: <Layers size={18} />,          label: 'Ingredientes', adminOnly: true },
   { to: '/recetas',         icon: <BookOpen size={18} />,        label: 'Recetas',      adminOnly: true },
-  { to: '/stock',           icon: <Archive size={18} />,         label: 'Stock' },
-  { to: '/movimientos',     icon: <ArrowLeftRight size={18} />,  label: 'Movimientos' },
   { to: '/predicciones',    icon: <TrendingUp size={18} />,      label: 'Predicciones', adminOnly: true },
   { to: '/recomendaciones', icon: <ShoppingBag size={18} />,     label: 'Compras',      adminOnly: true },
-  { to: '/merma',           icon: <AlertTriangle size={18} />,   label: 'Merma' },
   { to: '/reportes',        icon: <BarChart2 size={18} />,       label: 'Reportes',     adminOnly: true },
 ]
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+const rolLabel: Record<string, string> = {
+  admin:    'Administrador',
+  vendedor: 'Vendedor',
+  cajero:   'Vendedor',
+}
+
+export function Sidebar({ collapsed, onToggle, onClose }: SidebarProps) {
   const { user, clearAuth, isAdmin } = useAuthStore()
   const navigate = useNavigate()
   const admin = isAdmin()
@@ -56,10 +63,16 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <Flame size={16} className="text-white" />
         </div>
         {!collapsed && (
-          <div>
+          <div className="flex-1">
             <p className="text-white font-bold text-sm leading-tight">Tazos</p>
             <p className="text-brand-400 text-xs font-medium">Dorados</p>
           </div>
+        )}
+        {/* Botón cerrar en mobile */}
+        {!collapsed && onClose && (
+          <button onClick={onClose} className="text-gray-400 hover:text-white lg:hidden">
+            <X size={18} />
+          </button>
         )}
       </div>
 
@@ -69,6 +82,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <NavLink
             key={item.to}
             to={item.to}
+            onClick={onClose}
             className={({ isActive }) =>
               `sidebar-link ${isActive ? 'active' : ''} ${collapsed ? 'justify-center' : ''}`
             }
@@ -85,7 +99,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {!collapsed && user && (
           <div className="mb-2 px-2">
             <p className="text-white text-xs font-semibold truncate">{user.nombre}</p>
-            <p className="text-gray-500 text-xs capitalize">{user.rol}</p>
+            <p className="text-gray-400 text-xs">{rolLabel[user.rol] ?? user.rol}</p>
           </div>
         )}
         <button
@@ -98,11 +112,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </button>
       </div>
 
-      {/* Collapse toggle */}
+      {/* Collapse toggle — solo desktop */}
       <button
         onClick={onToggle}
         className="absolute -right-3 top-20 w-6 h-6 bg-gray-700 hover:bg-gray-600 text-white
-                   rounded-full flex items-center justify-center shadow-md transition-colors"
+                   rounded-full hidden lg:flex items-center justify-center shadow-md transition-colors"
       >
         {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
       </button>
