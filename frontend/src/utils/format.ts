@@ -11,6 +11,10 @@ const asUTC = (s: string) =>
 // Convierte un string de fecha UTC a un objeto Date en zona Guatemala
 const toGT = (s: string): Date => new Date(asUTC(s))
 
+// Fechas puras YYYY-MM-DD: usa mediodía UTC para que Guatemala (UTC-6) no retroceda al día anterior
+const dateOnlyToGT = (s: string): Date =>
+  /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + 'T12:00:00Z') : toGT(s)
+
 // Formatea una fecha en zona Guatemala independientemente del navegador
 const intlDate = (d: Date, opts: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat('es-GT', { timeZone: TZ, ...opts }).format(d)
@@ -28,7 +32,7 @@ export const formatNumber = (value: number, decimals = 0): string =>
 
 export const formatDate = (dateStr: string): string => {
   try {
-    const d = toGT(dateStr)
+    const d = dateOnlyToGT(dateStr)
     return isFinite(d.getTime())
       ? intlDate(d, { day: '2-digit', month: '2-digit', year: 'numeric' })
       : dateStr
@@ -46,7 +50,7 @@ export const formatDateTime = (dateStr: string): string => {
 
 export const formatDateShort = (dateStr: string): string => {
   try {
-    const d = toGT(dateStr)
+    const d = dateOnlyToGT(dateStr)
     return isFinite(d.getTime())
       ? intlDate(d, { day: '2-digit', month: 'short' })
       : dateStr
