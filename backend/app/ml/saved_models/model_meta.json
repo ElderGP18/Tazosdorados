@@ -1,0 +1,24 @@
+{
+  "entrenado_en": "2026-04-29T03:00:42.480413+00:00",
+  "dias_historicos": 24,
+  "dias_con_features": 10,
+  "mae_cv": 64.22,
+  "rmse_cv": 65.41,
+  "feature_cols": [
+    "sin_dow",
+    "cos_dow",
+    "is_friday",
+    "is_saturday",
+    "is_sunday",
+    "day_of_month",
+    "month",
+    "quarter",
+    "is_weekend",
+    "is_holiday",
+    "is_rainy_season",
+    "lag_1",
+    "lag_7",
+    "rolling_7d_mean",
+    "rolling_14d_mean"
+  ]
+}

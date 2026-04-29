@@ -126,7 +126,7 @@ def recomendaciones_compra(
     Recomienda cuánto comprar de cada ingrediente basado en:
     - Predicción ML de ventas para los próximos N días
     - Recetas (cantidad de ingrediente por producto)
-    - Stock actual disponible
+    - Stock actual disponible, descontando stock que vencerá antes de usarse
     """
     if not modelo_disponible():
         raise HTTPException(
@@ -180,27 +180,78 @@ def recomendaciones_compra(
     stock_rows = db.execute(stock_sql).fetchall()
     stock_map = {r[0]: {"disponible": float(r[1]), "minima": float(r[2])} for r in stock_rows}
 
+    # Calcular stock en riesgo de merma (FIFO): cantidad que vencerá dentro del período proyectado
+    entradas_rows = db.execute(
+        text("""
+            SELECT ingrediente_id, fecha, cantidad
+            FROM movimientos_stock
+            WHERE tipo = 'entrada'
+            ORDER BY ingrediente_id, fecha ASC
+        """)
+    ).fetchall()
+    from collections import defaultdict
+    entradas_por_ing: dict = defaultdict(list)
+    for ing_id, fecha, cantidad in entradas_rows:
+        entradas_por_ing[ing_id].append({"fecha": fecha, "cantidad": float(cantidad)})
+
+    ahora = datetime.now(timezone.utc)
+
+    def _stock_efectivo(ing_id: int, stock_actual: float) -> tuple[float, float]:
+        """Devuelve (stock_utilizable, stock_en_merma) considerando FIFO."""
+        vida = _vida_util(necesidad.get(ing_id, {}).get("nombre", ""))
+        if vida >= 60:
+            return stock_actual, 0.0
+        entradas = entradas_por_ing.get(ing_id, [])
+        if not entradas:
+            return stock_actual, 0.0
+
+        total_entrado = sum(e["cantidad"] for e in entradas)
+        ya_consumido = max(0.0, total_entrado - stock_actual)
+
+        en_merma = 0.0
+        for e in sorted(entradas, key=lambda x: x["fecha"]):
+            if ya_consumido >= e["cantidad"]:
+                ya_consumido -= e["cantidad"]
+                continue
+            restante = e["cantidad"] - ya_consumido
+            ya_consumido = 0.0
+            fecha_entrada = _to_aware(e["fecha"])
+            dias_en_stock = (ahora - fecha_entrada).days
+            dias_restantes = vida - dias_en_stock
+            # Si este lote vence antes de que termine el período proyectado, es merma
+            if dias_restantes < dias:
+                en_merma += restante
+
+        utilizable = max(0.0, stock_actual - en_merma)
+        return utilizable, en_merma
+
     # Calcular recomendación de compra
     resultado = []
     for ing_id, data in necesidad.items():
         stock_info = stock_map.get(ing_id, {"disponible": 0.0, "minima": 0.0})
-        disponible = stock_info["disponible"]
+        disponible_raw = stock_info["disponible"]
         minimo = stock_info["minima"]
         necesario = data["cantidad_necesaria"]
+
+        # Descontar stock que vencerá antes de usarse
+        disponible_efectivo, merma_estimada = _stock_efectivo(ing_id, disponible_raw)
+
         # Comprar lo que falta + stock mínimo de seguridad
-        a_comprar = max(0.0, necesario - disponible + minimo)
+        a_comprar = max(0.0, necesario - disponible_efectivo + minimo)
         costo_estimado = round(a_comprar * data["costo_unitario"], 2)
 
         resultado.append({
-            "ingrediente_id":    ing_id,
-            "nombre":            data["nombre"],
-            "unidad_medida":     data["unidad_medida"],
-            "stock_actual":      round(disponible, 4),
+            "ingrediente_id":     ing_id,
+            "nombre":             data["nombre"],
+            "unidad_medida":      data["unidad_medida"],
+            "stock_actual":       round(disponible_raw, 4),
+            "stock_utilizable":   round(disponible_efectivo, 4),
+            "merma_estimada":     round(merma_estimada, 4),
             "cantidad_necesaria": round(necesario, 4),
             "cantidad_a_comprar": round(a_comprar, 4),
-            "costo_estimado":    costo_estimado,
-            "prioridad":         "alta" if a_comprar > 0 and disponible < minimo else
-                                 "media" if a_comprar > 0 else "ok",
+            "costo_estimado":     costo_estimado,
+            "prioridad":          "alta" if a_comprar > 0 and disponible_efectivo < minimo else
+                                  "media" if a_comprar > 0 else "ok",
         })
 
     resultado.sort(key=lambda x: (x["prioridad"] != "alta", x["prioridad"] != "media"))

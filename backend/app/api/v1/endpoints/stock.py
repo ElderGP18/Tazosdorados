@@ -123,3 +123,50 @@ def historial_movimientos(ingrediente_id: int, limit: int = 50, db: Session = De
         .limit(limit)
         .all()
     )
+
+
+@router.post("/actualizar-minimos")
+def actualizar_minimos(
+    dias_historico: int = 28,
+    dias_seguridad: int = 3,
+    db: Session = Depends(get_db),
+):
+    """
+    Recalcula el stock mínimo de cada ingrediente basado en el consumo real
+    de los últimos N días. Nuevo mínimo = promedio_diario × días_seguridad.
+    """
+    rows = db.execute(
+        text("""
+            SELECT ingrediente_id, SUM(cantidad) AS total_consumido
+            FROM movimientos_stock
+            WHERE tipo = 'salida'
+              AND fecha >= DATE_SUB(NOW(), INTERVAL :dias DAY)
+            GROUP BY ingrediente_id
+        """),
+        {"dias": dias_historico},
+    ).fetchall()
+
+    if not rows:
+        return {"actualizados": 0, "mensaje": "Sin datos de consumo en el período"}
+
+    actualizados = 0
+    detalle = []
+    for ing_id, total in rows:
+        promedio_diario = float(total) / dias_historico
+        nuevo_minimo = round(promedio_diario * dias_seguridad, 4)
+        if nuevo_minimo <= 0:
+            continue
+        db.execute(
+            text("UPDATE stock SET cantidad_minima = :min WHERE ingrediente_id = :id"),
+            {"min": nuevo_minimo, "id": ing_id},
+        )
+        actualizados += 1
+        detalle.append({"ingrediente_id": ing_id, "nuevo_minimo": nuevo_minimo})
+
+    db.commit()
+    return {
+        "actualizados": actualizados,
+        "dias_historico": dias_historico,
+        "dias_seguridad": dias_seguridad,
+        "detalle": detalle,
+    }

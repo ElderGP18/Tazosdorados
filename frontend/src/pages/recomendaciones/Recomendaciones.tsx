@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ShoppingBag, RefreshCw, TrendingUp } from 'lucide-react'
+import { ShoppingBag, RefreshCw, TrendingUp, AlertTriangle } from 'lucide-react'
 import { getRecomendacionesCompra } from '../../api/predicciones'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Badge } from '../../components/ui/Badge'
@@ -117,8 +117,15 @@ export default function Recomendaciones() {
                       <p className="font-semibold text-gray-900">{r.nombre}</p>
                       <Badge variant={cfg.variant}>{cfg.label}</Badge>
                     </div>
-                    <div className="flex items-center gap-6 text-sm text-gray-500">
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-gray-500">
                       <span>Stock: <span className="font-medium text-gray-700">{r.stock_actual} {r.unidad_medida}</span></span>
+                      {(r.merma_estimada ?? 0) > 0 && (
+                        <span className="flex items-center gap-1 text-orange-500">
+                          <AlertTriangle size={12} />
+                          Merma: <span className="font-medium">{r.merma_estimada.toFixed(2)}</span>
+                        </span>
+                      )}
+                      <span>Utilizable: <span className="font-medium text-gray-700">{(r.stock_utilizable ?? r.stock_actual).toFixed(2)} {r.unidad_medida}</span></span>
                       <span>Necesario: <span className="font-medium text-gray-700">{r.cantidad_necesaria.toFixed(2)} {r.unidad_medida}</span></span>
                     </div>
                   </div>

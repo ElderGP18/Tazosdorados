@@ -9,13 +9,20 @@ import numpy as np
 
 
 FEATURE_COLS = [
-    "day_of_week",
+    # Día de la semana: codificación cíclica (sin/cos) + flags binarios Vie/Sáb/Dom
+    "sin_dow",
+    "cos_dow",
+    "is_friday",
+    "is_saturday",
+    "is_sunday",
+    # Otras temporales
     "day_of_month",
     "month",
     "quarter",
     "is_weekend",
     "is_holiday",
     "is_rainy_season",   # Guatemala: mayo–octubre
+    # Lags y rolling
     "lag_1",
     "lag_7",
     "rolling_7d_mean",
@@ -35,11 +42,19 @@ def build_features(df: pd.DataFrame, holidays: set[str]) -> pd.DataFrame:
     """
     df = df.copy().sort_values("date").reset_index(drop=True)
 
-    df["day_of_week"]     = df["date"].dt.dayofweek
+    dow = df["date"].dt.dayofweek
+    # Codificación cíclica: preserva la naturaleza circular del día de semana
+    # (Domingo=6 y Lunes=0 son días adyacentes, no extremos opuestos)
+    df["sin_dow"]     = np.sin(2 * np.pi * dow / 7)
+    df["cos_dow"]     = np.cos(2 * np.pi * dow / 7)
+    df["is_friday"]   = (dow == 4).astype(int)
+    df["is_saturday"] = (dow == 5).astype(int)
+    df["is_sunday"]   = (dow == 6).astype(int)
+
     df["day_of_month"]    = df["date"].dt.day
     df["month"]           = df["date"].dt.month
     df["quarter"]         = df["date"].dt.quarter
-    df["is_weekend"]      = (df["day_of_week"] >= 5).astype(int)
+    df["is_weekend"]      = (dow >= 5).astype(int)
     df["is_holiday"]      = df["date"].dt.strftime("%Y-%m-%d").isin(holidays).astype(int)
     df["is_rainy_season"] = df["month"].apply(_is_rainy_season)
 
@@ -68,13 +83,18 @@ def build_future_row(
     roll7  = float(series.iloc[-7:].mean())  if len(series) >= 7  else lag_1
     roll14 = float(series.iloc[-14:].mean()) if len(series) >= 14 else roll7
 
+    dow = target_date.dayofweek
     row = {
         "date":            target_date,
-        "day_of_week":     target_date.dayofweek,
+        "sin_dow":         np.sin(2 * np.pi * dow / 7),
+        "cos_dow":         np.cos(2 * np.pi * dow / 7),
+        "is_friday":       int(dow == 4),
+        "is_saturday":     int(dow == 5),
+        "is_sunday":       int(dow == 6),
         "day_of_month":    target_date.day,
         "month":           target_date.month,
         "quarter":         target_date.quarter,
-        "is_weekend":      int(target_date.dayofweek >= 5),
+        "is_weekend":      int(dow >= 5),
         "is_holiday":      int(target_date.strftime("%Y-%m-%d") in holidays),
         "is_rainy_season": _is_rainy_season(target_date.month),
         "lag_1":           lag_1,

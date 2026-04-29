@@ -190,6 +190,8 @@ export interface RecomendacionCompra {
   nombre: string
   unidad_medida: string
   stock_actual: number
+  stock_utilizable: number
+  merma_estimada: number
   cantidad_necesaria: number
   cantidad_a_comprar: number
   costo_estimado: number

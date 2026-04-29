@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Plus, History, ArrowUpCircle, ArrowDownCircle, Package, AlertTriangle } from 'lucide-react'
+import { Plus, History, ArrowUpCircle, ArrowDownCircle, Package, AlertTriangle, Settings2 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { getStock, registrarMovimiento, getMovimientos } from '../../api/stock'
+import { getStock, registrarMovimiento, getMovimientos, actualizarMinimos } from '../../api/stock'
 import { getIngredientes } from '../../api/ingredientes'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Modal } from '../../components/ui/Modal'
@@ -17,11 +17,25 @@ export default function Stock() {
   const [movimientos, setMovimientos] = useState<MovimientoStock[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [updatingMinimos, setUpdatingMinimos] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [historialOpen, setHistorialOpen] = useState(false)
   const [historialIng, setHistorialIng] = useState<Ingrediente | null>(null)
   const [filtro, setFiltro] = useState<'todos' | 'alerta' | 'normal'>('todos')
   const [form, setForm] = useState({ ingrediente_id: '', tipo: 'entrada' as 'entrada' | 'salida', cantidad: '', notas: '' })
+
+  const handleActualizarMinimos = async () => {
+    setUpdatingMinimos(true)
+    try {
+      const { data } = await actualizarMinimos()
+      toast.success(`Mínimos actualizados: ${data.actualizados} ingredientes`)
+      load()
+    } catch {
+      toast.error('Error al actualizar mínimos')
+    } finally {
+      setUpdatingMinimos(false)
+    }
+  }
 
   const load = async () => {
     setLoading(true)
@@ -91,12 +105,23 @@ export default function Stock() {
         title="Stock"
         description="Control de inventario de ingredientes"
         action={
-          <button
-            onClick={() => { setModalOpen(true); setForm({ ingrediente_id: String(ingredientes[0]?.id ?? ''), tipo: 'entrada', cantidad: '', notas: '' }) }}
-            className="btn-primary"
-          >
-            <Plus size={16} /> Registrar movimiento
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleActualizarMinimos}
+              className="btn-secondary"
+              disabled={updatingMinimos}
+              title="Recalcula los mínimos según el consumo real de los últimos 28 días"
+            >
+              <Settings2 size={15} className={updatingMinimos ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">Actualizar mínimos</span>
+            </button>
+            <button
+              onClick={() => { setModalOpen(true); setForm({ ingrediente_id: String(ingredientes[0]?.id ?? ''), tipo: 'entrada', cantidad: '', notas: '' }) }}
+              className="btn-primary"
+            >
+              <Plus size={16} /> Registrar movimiento
+            </button>
+          </div>
         }
       />
 

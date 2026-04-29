@@ -34,3 +34,10 @@ export const verificarStockVenta = (items: { producto_id: number; cantidad: numb
     '/stock/verificar-venta',
     items,
   )
+
+export const actualizarMinimos = (diasHistorico = 28, diasSeguridad = 3) =>
+  apiClient.post<{ actualizados: number; dias_historico: number; dias_seguridad: number; detalle: { ingrediente_id: number; nuevo_minimo: number }[] }>(
+    '/stock/actualizar-minimos',
+    null,
+    { params: { dias_historico: diasHistorico, dias_seguridad: diasSeguridad } },
+  )
