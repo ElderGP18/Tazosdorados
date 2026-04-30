@@ -133,11 +133,17 @@ def actualizar_minimos(
 ):
     """
     Recalcula el stock mínimo de cada ingrediente basado en el consumo real
-    de los últimos N días. Nuevo mínimo = promedio_diario × días_seguridad.
+    de los últimos N días.
+    Mínimo = MAX(consumo_diario_pico × días_seguridad, promedio_diario × días_seguridad × 1.5)
+    Usa el pico diario para cubrir Vie/Sáb/Dom sin quedarse corto.
     """
     rows = db.execute(
         text("""
-            SELECT ingrediente_id, SUM(cantidad) AS total_consumido
+            SELECT
+                ingrediente_id,
+                SUM(cantidad)                   AS total_consumido,
+                MAX(cantidad)                   AS pico_dia,
+                COUNT(DISTINCT DATE(fecha))     AS dias_con_salida
             FROM movimientos_stock
             WHERE tipo = 'salida'
               AND fecha >= DATE_SUB(NOW(), INTERVAL :dias DAY)
@@ -151,9 +157,11 @@ def actualizar_minimos(
 
     actualizados = 0
     detalle = []
-    for ing_id, total in rows:
-        promedio_diario = float(total) / dias_historico
-        nuevo_minimo = round(promedio_diario * dias_seguridad, 4)
+    for ing_id, total, pico, dias_con_salida in rows:
+        pico_diario = float(pico)
+        promedio_diario = float(total) / max(int(dias_con_salida), 1)
+        # El mínimo cubre el peor día × seguridad, con piso en promedio × 1.5 × seguridad
+        nuevo_minimo = round(max(pico_diario * dias_seguridad, promedio_diario * 1.5 * dias_seguridad), 4)
         if nuevo_minimo <= 0:
             continue
         db.execute(
@@ -161,12 +169,17 @@ def actualizar_minimos(
             {"min": nuevo_minimo, "id": ing_id},
         )
         actualizados += 1
-        detalle.append({"ingrediente_id": ing_id, "nuevo_minimo": nuevo_minimo})
+        detalle.append({
+            "ingrediente_id": ing_id,
+            "nuevo_minimo":   nuevo_minimo,
+            "pico_dia":       round(pico_diario, 4),
+            "promedio_dia":   round(promedio_diario, 4),
+        })
 
     db.commit()
     return {
-        "actualizados": actualizados,
+        "actualizados":   actualizados,
         "dias_historico": dias_historico,
         "dias_seguridad": dias_seguridad,
-        "detalle": detalle,
+        "detalle":        detalle,
     }

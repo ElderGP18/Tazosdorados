@@ -1,9 +1,9 @@
 {
-  "entrenado_en": "2026-04-29T03:00:42.480413+00:00",
-  "dias_historicos": 24,
-  "dias_con_features": 10,
-  "mae_cv": 64.22,
-  "rmse_cv": 65.41,
+  "entrenado_en": "2026-04-30T03:20:42.420103+00:00",
+  "dias_historicos": 25,
+  "dias_con_features": 11,
+  "mae_cv": 6.3,
+  "rmse_cv": 6.52,
   "feature_cols": [
     "sin_dow",
     "cos_dow",
@@ -16,6 +16,7 @@
     "is_weekend",
     "is_holiday",
     "is_rainy_season",
+    "dow_historical_mean",
     "lag_1",
     "lag_7",
     "rolling_7d_mean",

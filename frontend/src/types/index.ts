@@ -132,6 +132,8 @@ export interface MovimientoStock {
 export interface ProductoPrediccion {
   producto_id: number
   nombre: string
+  categoria_id: number
+  categoria: string
   unidades_predichas: number
   porcentaje: number
 }
