@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.stock import Stock, MovimientoStock
 from app.schemas.stock import MovimientoStockCreate, MovimientoStockOut, StockOut
+from app.ml.loader import cargar_ventas_diarias, cargar_proporciones_productos
+from app.ml.predictor import _compute_dow_avgs
 
 router = APIRouter(prefix="/stock", tags=["stock"])
 
@@ -127,41 +129,64 @@ def historial_movimientos(ingrediente_id: int, limit: int = 50, db: Session = De
 
 @router.post("/actualizar-minimos")
 def actualizar_minimos(
-    dias_historico: int = 28,
     dias_seguridad: int = 3,
     db: Session = Depends(get_db),
 ):
     """
-    Recalcula el stock mínimo de cada ingrediente basado en el consumo real
-    de los últimos N días.
-    Mínimo = MAX(consumo_diario_pico × días_seguridad, promedio_diario × días_seguridad × 1.5)
-    Usa el pico diario para cubrir Vie/Sáb/Dom sin quedarse corto.
+    Recalcula el stock mínimo de cada ingrediente basado en la demanda proyectada:
+      1. Toma la media de ventas del día de semana más ocupado (DOW avg máximo)
+      2. Distribuye esas ventas por producto según proporciones históricas
+      3. Multiplica por las cantidades de cada receta
+      4. Mínimo = necesidad_dia_pico × dias_seguridad
+
+    Esto asegura que Vie/Sáb/Dom (los días más altos) siempre estén cubiertos
+    y que los mínimos sean proporcionales a ventas reales, no a movimientos de stock.
     """
-    rows = db.execute(
+    history      = cargar_ventas_diarias(db)
+    proporciones = cargar_proporciones_productos(db)
+
+    if history.empty or proporciones.empty:
+        return {"actualizados": 0, "mensaje": "Sin historial de ventas para calcular mínimos"}
+
+    dow_avgs = _compute_dow_avgs(history)
+    if not dow_avgs:
+        return {"actualizados": 0, "mensaje": "Sin datos de ventas por día de semana"}
+
+    max_daily_units = max(dow_avgs.values())
+
+    # Unidades del producto más vendido en el día pico
+    unidades_por_producto: dict[int, float] = {
+        int(row["producto_id"]): max_daily_units * float(row["proporcion"])
+        for _, row in proporciones.iterrows()
+    }
+
+    # Cargar recetas
+    recetas = db.execute(
         text("""
-            SELECT
-                ingrediente_id,
-                SUM(cantidad)                   AS total_consumido,
-                MAX(cantidad)                   AS pico_dia,
-                COUNT(DISTINCT DATE(fecha))     AS dias_con_salida
-            FROM movimientos_stock
-            WHERE tipo = 'salida'
-              AND fecha >= DATE_SUB(NOW(), INTERVAL :dias DAY)
-            GROUP BY ingrediente_id
-        """),
-        {"dias": dias_historico},
+            SELECT rd.producto_id, rd.ingrediente_id, rd.cantidad,
+                   i.nombre, i.unidad_medida
+            FROM recetas_detalle rd
+            JOIN ingredientes i ON i.id = rd.ingrediente_id
+            WHERE i.activo = 1
+        """)
     ).fetchall()
 
-    if not rows:
-        return {"actualizados": 0, "mensaje": "Sin datos de consumo en el período"}
+    # Necesidad diaria pico por ingrediente
+    necesidad_pico: dict[int, dict] = {}
+    for prod_id, ing_id, cant_receta, nombre, unidad in recetas:
+        unidades = unidades_por_producto.get(prod_id, 0.0)
+        need = float(cant_receta) * unidades
+        if ing_id not in necesidad_pico:
+            necesidad_pico[ing_id] = {"nombre": nombre, "unidad": unidad, "need": 0.0}
+        necesidad_pico[ing_id]["need"] += need
+
+    if not necesidad_pico:
+        return {"actualizados": 0, "mensaje": "Sin recetas configuradas"}
 
     actualizados = 0
     detalle = []
-    for ing_id, total, pico, dias_con_salida in rows:
-        pico_diario = float(pico)
-        promedio_diario = float(total) / max(int(dias_con_salida), 1)
-        # El mínimo cubre el peor día × seguridad, con piso en promedio × 1.5 × seguridad
-        nuevo_minimo = round(max(pico_diario * dias_seguridad, promedio_diario * 1.5 * dias_seguridad), 4)
+    for ing_id, data in necesidad_pico.items():
+        nuevo_minimo = round(data["need"] * dias_seguridad, 4)
         if nuevo_minimo <= 0:
             continue
         db.execute(
@@ -170,16 +195,17 @@ def actualizar_minimos(
         )
         actualizados += 1
         detalle.append({
-            "ingrediente_id": ing_id,
-            "nuevo_minimo":   nuevo_minimo,
-            "pico_dia":       round(pico_diario, 4),
-            "promedio_dia":   round(promedio_diario, 4),
+            "ingrediente_id":      ing_id,
+            "nombre":              data["nombre"],
+            "nuevo_minimo":        nuevo_minimo,
+            "necesidad_dia_pico":  round(data["need"], 4),
+            "dias_seguridad":      dias_seguridad,
         })
 
     db.commit()
     return {
-        "actualizados":   actualizados,
-        "dias_historico": dias_historico,
-        "dias_seguridad": dias_seguridad,
-        "detalle":        detalle,
+        "actualizados":     actualizados,
+        "max_daily_units":  round(max_daily_units, 1),
+        "dias_seguridad":   dias_seguridad,
+        "detalle":          sorted(detalle, key=lambda x: x["nuevo_minimo"], reverse=True),
     }
