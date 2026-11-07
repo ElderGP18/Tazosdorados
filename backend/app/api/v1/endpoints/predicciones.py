@@ -125,8 +125,11 @@ def recomendaciones_compra(
     """
     Recomienda cuánto comprar de cada ingrediente basado en:
     - Predicción ML de ventas para los próximos N días
-    - Recetas (cantidad de ingrediente por producto)
-    - Stock actual disponible, descontando stock que vencerá antes de usarse
+    - Recetas (cantidad de ingrediente por producto) — rebaja TODOS los ingredientes
+    - Stock actual disponible, descontando stock que vencerá antes de usarse (FIFO)
+
+    Devuelve totales resumidos (Q total, cantidad de items) para que sea claro
+    cuánto gastar y qué ingredientes deben ir en la lista de compras.
     """
     if not modelo_disponible():
         raise HTTPException(
@@ -146,7 +149,7 @@ def recomendaciones_compra(
                 unidades_por_producto.get(pid, 0.0) + prod["unidades_predichas"]
             )
 
-    # Cargar recetas
+    # Cargar recetas — incluye TODOS los ingredientes activos (tortilla, carne, salsas, etc.)
     recetas_sql = text("""
         SELECT rd.producto_id, rd.ingrediente_id, rd.cantidad,
                i.nombre, i.unidad_medida, i.costo_unitario
@@ -156,7 +159,7 @@ def recomendaciones_compra(
     """)
     recetas = db.execute(recetas_sql).fetchall()
 
-    # Calcular necesidad total por ingrediente
+    # Calcular necesidad total por ingrediente (TODOS los ingredientes de todas las recetas)
     necesidad: dict[int, dict] = {}
     for r in recetas:
         prod_id, ing_id, cant_receta, nombre, unidad, costo = r
@@ -197,7 +200,8 @@ def recomendaciones_compra(
     ahora = datetime.now(timezone.utc)
 
     def _stock_efectivo(ing_id: int, stock_actual: float) -> tuple[float, float]:
-        """Devuelve (stock_utilizable, stock_en_merma) considerando FIFO."""
+        """Devuelve (stock_utilizable, stock_en_merma) considerando FIFO.
+        Las salidas (ventas) consumen el lote más antiguo primero → merma se reduce primero."""
         vida = _vida_util(necesidad.get(ing_id, {}).get("nombre", ""))
         if vida >= 60:
             return stock_actual, 0.0
@@ -227,35 +231,65 @@ def recomendaciones_compra(
 
     # Calcular recomendación de compra
     resultado = []
+    total_costo_compra = 0.0
+    total_costo_merma = 0.0
+    items_a_comprar = 0
+    items_alta = 0
+    items_media = 0
+
     for ing_id, data in necesidad.items():
         stock_info = stock_map.get(ing_id, {"disponible": 0.0, "minima": 0.0})
         disponible_raw = stock_info["disponible"]
         minimo = stock_info["minima"]
         necesario = data["cantidad_necesaria"]
 
-        # Descontar stock que vencerá antes de usarse
+        # Descontar stock que vencerá antes de usarse (merma FIFO)
         disponible_efectivo, merma_estimada = _stock_efectivo(ing_id, disponible_raw)
 
         # Comprar lo que falta + stock mínimo de seguridad
         a_comprar = max(0.0, necesario - disponible_efectivo + minimo)
         costo_estimado = round(a_comprar * data["costo_unitario"], 2)
+        costo_merma = round(merma_estimada * data["costo_unitario"], 2)
+
+        prioridad = "alta" if a_comprar > 0 and disponible_efectivo < minimo else \
+                    "media" if a_comprar > 0 else "ok"
+
+        if a_comprar > 0:
+            items_a_comprar += 1
+            total_costo_compra += costo_estimado
+        total_costo_merma += costo_merma
+        if prioridad == "alta": items_alta += 1
+        if prioridad == "media": items_media += 1
 
         resultado.append({
             "ingrediente_id":     ing_id,
             "nombre":             data["nombre"],
             "unidad_medida":      data["unidad_medida"],
+            "costo_unitario":     round(data["costo_unitario"], 4),
             "stock_actual":       round(disponible_raw, 4),
             "stock_utilizable":   round(disponible_efectivo, 4),
             "merma_estimada":     round(merma_estimada, 4),
+            "costo_merma":        costo_merma,
             "cantidad_necesaria": round(necesario, 4),
             "cantidad_a_comprar": round(a_comprar, 4),
             "costo_estimado":     costo_estimado,
-            "prioridad":          "alta" if a_comprar > 0 and disponible_efectivo < minimo else
-                                  "media" if a_comprar > 0 else "ok",
+            "stock_minimo":       round(minimo, 4),
+            "prioridad":          prioridad,
         })
 
-    resultado.sort(key=lambda x: (x["prioridad"] != "alta", x["prioridad"] != "media"))
-    return {"dias_proyectados": dias, "recomendaciones": resultado}
+    resultado.sort(key=lambda x: (x["prioridad"] != "alta", x["prioridad"] != "media", -x["costo_estimado"]))
+
+    return {
+        "dias_proyectados": dias,
+        "resumen": {
+            "items_a_comprar":     items_a_comprar,
+            "items_alta":          items_alta,
+            "items_media":         items_media,
+            "total_costo_compra":  round(total_costo_compra, 2),
+            "total_costo_merma":   round(total_costo_merma, 2),
+        },
+        "recomendaciones": resultado,
+    }
 
 
 def _to_aware(dt) -> datetime:
@@ -269,9 +303,17 @@ def _to_aware(dt) -> datetime:
 def riesgo_merma(db: Session = Depends(get_db)):
     """
     Calcula el riesgo de merma por LOTE (FIFO).
-    Los lotes más antiguos se consumen primero. Si hay stock de distintas
-    fechas de compra, se muestra el estado real de cada lote.
+    Los lotes más antiguos se consumen primero. Cuando hay una salida (venta,
+    descarte) se rebaja del lote más viejo → la merma se reduce ANTES que el
+    stock fresco.
+
+    Devuelve totales globales (unidades y Q) para que sea claro cuánto se tiene
+    de merma.
     """
+    # Costo por ingrediente (para calcular Q de merma)
+    costos_rows = db.execute(text("SELECT id, costo_unitario FROM ingredientes")).fetchall()
+    costo_map = {r[0]: float(r[1]) for r in costos_rows}
+
     # Todas las entradas de stock, ordenadas de más antiguo a más nuevo
     entradas_rows = db.execute(
         text("""
@@ -302,6 +344,18 @@ def riesgo_merma(db: Session = Depends(get_db)):
     orden_estado = {"vencido": 0, "alto": 1, "medio": 2, "ok": 3}
     resultado = []
 
+    # Totales globales (para el header de la página de merma)
+    totales = {
+        "ingredientes_con_merma":    0,  # cuántos ingredientes tienen al menos una unidad vencida/pronto-a-vencer
+        "ingredientes_vencidos":     0,  # cuántos tienen lote vencido
+        "cantidad_merma":            0.0,  # suma total de unidades vencidas + al borde (alto)
+        "cantidad_vencida":          0.0,  # solo unidades vencidas
+        "cantidad_pronta_vencer":    0.0,  # solo unidades estado "alto"
+        "costo_merma":               0.0,  # Q total de merma = (vencida + alto) × costo_unitario
+        "costo_vencida":             0.0,
+        "costo_pronta_vencer":       0.0,
+    }
+
     for ing_id, nombre, unidad, disponible in rows:
         vida_util = _vida_util(nombre)
         if vida_util >= 60:
@@ -312,7 +366,6 @@ def riesgo_merma(db: Session = Depends(get_db)):
 
         # ── Calcular lotes en stock usando FIFO ──────────────────────
         if not entradas:
-            # Sin historial de entradas: asumir todo es de hoy
             lotes_en_stock = [{"ref_aware": ahora, "cantidad": stock_actual}]
         else:
             total_entrado = sum(e["cantidad"] for e in entradas)
@@ -323,9 +376,8 @@ def riesgo_merma(db: Session = Depends(get_db)):
                 if ya_consumido <= 0:
                     lotes_en_stock.append({"ref_aware": _to_aware(e["fecha"]), "cantidad": e["cantidad"]})
                 elif ya_consumido >= e["cantidad"]:
-                    ya_consumido -= e["cantidad"]  # lote completamente consumido
+                    ya_consumido -= e["cantidad"]
                 else:
-                    # Lote parcialmente consumido — solo queda el resto
                     restante = e["cantidad"] - ya_consumido
                     ya_consumido = 0.0
                     lotes_en_stock.append({"ref_aware": _to_aware(e["fecha"]), "cantidad": restante})
@@ -333,6 +385,10 @@ def riesgo_merma(db: Session = Depends(get_db)):
         # ── Evaluar frescura de cada lote ────────────────────────────
         lotes_info = []
         estado_general = "ok"
+        qty_vencida  = 0.0
+        qty_alto     = 0.0  # a punto de vencer
+        qty_medio    = 0.0
+        qty_fresco   = 0.0
 
         for lote in lotes_en_stock:
             dias_en_stock = max(0, (ahora - lote["ref_aware"]).days)
@@ -341,12 +397,16 @@ def riesgo_merma(db: Session = Depends(get_db)):
 
             if dias_restantes <= 0:
                 estado_lote = "vencido"
+                qty_vencida += lote["cantidad"]
             elif pct <= 25:
                 estado_lote = "alto"
+                qty_alto += lote["cantidad"]
             elif pct <= 60:
                 estado_lote = "medio"
+                qty_medio += lote["cantidad"]
             else:
                 estado_lote = "ok"
+                qty_fresco += lote["cantidad"]
 
             if orden_estado[estado_lote] < orden_estado[estado_general]:
                 estado_general = estado_lote
@@ -360,15 +420,46 @@ def riesgo_merma(db: Session = Depends(get_db)):
                 "estado":            estado_lote,
             })
 
+        costo_unit = costo_map.get(ing_id, 0.0)
+        cantidad_merma_ing = qty_vencida + qty_alto  # vencida + a punto de vencer
+        costo_merma_ing    = cantidad_merma_ing * costo_unit
+
+        # Totales globales
+        if cantidad_merma_ing > 0:
+            totales["ingredientes_con_merma"] += 1
+        if qty_vencida > 0:
+            totales["ingredientes_vencidos"] += 1
+        totales["cantidad_merma"]         += cantidad_merma_ing
+        totales["cantidad_vencida"]       += qty_vencida
+        totales["cantidad_pronta_vencer"] += qty_alto
+        totales["costo_merma"]            += costo_merma_ing
+        totales["costo_vencida"]          += qty_vencida * costo_unit
+        totales["costo_pronta_vencer"]    += qty_alto * costo_unit
+
         resultado.append({
-            "ingrediente_id": ing_id,
-            "nombre":         nombre,
-            "unidad_medida":  unidad,
-            "stock_actual":   round(stock_actual, 4),
-            "vida_util_dias": vida_util,
-            "estado_general": estado_general,
-            "lotes":          lotes_info,
+            "ingrediente_id":   ing_id,
+            "nombre":           nombre,
+            "unidad_medida":    unidad,
+            "stock_actual":     round(stock_actual, 4),
+            "stock_bueno":      round(qty_fresco + qty_medio, 4),      # stock utilizable (fresco + vigilar)
+            "stock_merma":      round(cantidad_merma_ing, 4),            # vencida + al borde
+            "cantidad_vencida": round(qty_vencida, 4),
+            "cantidad_pronta_vencer": round(qty_alto, 4),
+            "costo_unitario":   round(costo_unit, 4),
+            "costo_merma":      round(costo_merma_ing, 2),
+            "vida_util_dias":   vida_util,
+            "estado_general":   estado_general,
+            "lotes":            lotes_info,
         })
 
-    resultado.sort(key=lambda x: (orden_estado.get(x["estado_general"], 4), x["nombre"]))
-    return {"ingredientes": resultado}
+    resultado.sort(key=lambda x: (orden_estado.get(x["estado_general"], 4), -x["costo_merma"], x["nombre"]))
+
+    # Redondeo final de totales
+    totales["cantidad_merma"]         = round(totales["cantidad_merma"], 4)
+    totales["cantidad_vencida"]       = round(totales["cantidad_vencida"], 4)
+    totales["cantidad_pronta_vencer"] = round(totales["cantidad_pronta_vencer"], 4)
+    totales["costo_merma"]            = round(totales["costo_merma"], 2)
+    totales["costo_vencida"]          = round(totales["costo_vencida"], 2)
+    totales["costo_pronta_vencer"]    = round(totales["costo_pronta_vencer"], 2)
+
+    return {"totales": totales, "ingredientes": resultado}

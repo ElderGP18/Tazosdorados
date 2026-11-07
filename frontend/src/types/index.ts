@@ -191,17 +191,29 @@ export interface RecomendacionCompra {
   ingrediente_id: number
   nombre: string
   unidad_medida: string
+  costo_unitario: number
   stock_actual: number
   stock_utilizable: number
+  stock_minimo: number
   merma_estimada: number
+  costo_merma: number
   cantidad_necesaria: number
   cantidad_a_comprar: number
   costo_estimado: number
   prioridad: 'alta' | 'media' | 'ok'
 }
 
+export interface ResumenRecomendaciones {
+  items_a_comprar: number
+  items_alta: number
+  items_media: number
+  total_costo_compra: number
+  total_costo_merma: number
+}
+
 export interface RecomendacionesCompraResponse {
   dias_proyectados: number
+  resumen: ResumenRecomendaciones
   recomendaciones: RecomendacionCompra[]
 }
 
@@ -220,11 +232,29 @@ export interface ItemMermaFrescura {
   nombre: string
   unidad_medida: string
   stock_actual: number
+  stock_bueno: number
+  stock_merma: number
+  cantidad_vencida: number
+  cantidad_pronta_vencer: number
+  costo_unitario: number
+  costo_merma: number
   vida_util_dias: number
   estado_general: 'ok' | 'medio' | 'alto' | 'vencido'
   lotes: LoteMerma[]
 }
 
+export interface TotalesMerma {
+  ingredientes_con_merma: number
+  ingredientes_vencidos: number
+  cantidad_merma: number
+  cantidad_vencida: number
+  cantidad_pronta_vencer: number
+  costo_merma: number
+  costo_vencida: number
+  costo_pronta_vencer: number
+}
+
 export interface RiesgoMermaResponse {
+  totales: TotalesMerma
   ingredientes: ItemMermaFrescura[]
 }

@@ -38,9 +38,33 @@ def listar_ventas(
 
 @router.post("/", response_model=VentaOut, status_code=status.HTTP_201_CREATED)
 def registrar_venta(data: VentaCreate, db: Session = Depends(get_db)):
+    """
+    Registra una venta y rebaja TODOS los ingredientes de todas las recetas
+    (tortilla, carne, cebolla, salsas, guacamol, etc.).
+
+    El descuento consume el lote más antiguo primero (FIFO) — así la merma
+    se rebaja ANTES que el stock fresco. El modelo de lotes se calcula
+    dinámicamente en /predicciones/riesgo-merma; aquí solo registramos el
+    movimiento con su fecha para que el FIFO sea reproducible.
+    """
     if not data.detalles:
         raise HTTPException(status_code=400, detail="La venta debe tener al menos un producto")
 
+    # 1) Agrupar necesidad total por ingrediente (combina todos los productos
+    #    de la venta: así si dos items comparten "cebolla" se suma todo).
+    producto_ids = {d.producto_id for d in data.detalles}
+    recetas_rows = (
+        db.query(RecetaDetalle)
+        .filter(RecetaDetalle.producto_id.in_(producto_ids))
+        .all()
+    )
+    recetas_by_prod: dict[int, list[RecetaDetalle]] = {}
+    for r in recetas_rows:
+        recetas_by_prod.setdefault(r.producto_id, []).append(r)
+
+    # (Si hubiera productos sin receta se dejan pasar; solo se rebajan los que sí la tienen)
+
+    # 2) Calcular total y crear detalles
     total = Decimal("0")
     detalles_orm = []
     for det in data.detalles:
@@ -64,32 +88,30 @@ def registrar_venta(data: VentaCreate, db: Session = Depends(get_db)):
     db.add(venta)
     db.flush()  # Obtener venta.id sin hacer commit todavía
 
-    # ── Descuento automático de stock según recetas ────────────────────────
+    # 3) Agregación: ingrediente_id -> cantidad total a rebajar
+    necesidad_total: dict[int, Decimal] = {}
     for det in data.detalles:
-        recetas = (
-            db.query(RecetaDetalle)
-            .filter(RecetaDetalle.producto_id == det.producto_id)
-            .all()
-        )
-        for receta in recetas:
-            cantidad_usar = receta.cantidad * Decimal(str(det.cantidad))
-            stock = (
-                db.query(Stock)
-                .filter(Stock.ingrediente_id == receta.ingrediente_id)
-                .first()
+        for receta in recetas_by_prod.get(det.producto_id, []):
+            uso = receta.cantidad * Decimal(str(det.cantidad))
+            necesidad_total[receta.ingrediente_id] = necesidad_total.get(receta.ingrediente_id, Decimal("0")) + uso
+
+    # 4) Rebajar stock y registrar UN SOLO movimiento por ingrediente
+    #    (FIFO implícito: el cálculo de lotes en riesgo-merma consume primero
+    #    las entradas más antiguas basándose en total_entrado - stock_actual).
+    for ing_id, cantidad_usar in necesidad_total.items():
+        stock = db.query(Stock).filter(Stock.ingrediente_id == ing_id).first()
+        if stock:
+            stock.cantidad_disponible = max(
+                Decimal("0"),
+                stock.cantidad_disponible - cantidad_usar,
             )
-            if stock:
-                stock.cantidad_disponible = max(
-                    Decimal("0"),
-                    stock.cantidad_disponible - cantidad_usar,
-                )
-                db.add(MovimientoStock(
-                    ingrediente_id=receta.ingrediente_id,
-                    tipo="salida",
-                    cantidad=cantidad_usar,
-                    referencia=f"venta_{venta.id}",
-                    notas="Descuento automático por venta",
-                ))
+        db.add(MovimientoStock(
+            ingrediente_id=ing_id,
+            tipo="salida",
+            cantidad=cantidad_usar,
+            referencia=f"venta_{venta.id}",
+            notas="Descuento automático por venta (FIFO)",
+        ))
 
     db.commit()
     db.refresh(venta)

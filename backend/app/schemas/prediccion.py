@@ -4,6 +4,8 @@ from pydantic import BaseModel
 class ProductoPrediccionOut(BaseModel):
     producto_id: int
     nombre: str
+    categoria_id: int = 0
+    categoria: str = "Otros"
     unidades_predichas: float
     porcentaje: float
 

@@ -1,28 +1,32 @@
 import { useEffect, useState } from 'react'
-import { Download } from 'lucide-react'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
+  Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
 } from 'recharts'
 import { subDays, subMonths, startOfMonth } from 'date-fns'
 import { today as gtToday, toDateInput } from '../../utils/format'
 import { getVentas } from '../../api/ventas'
-import { getProductos } from '../../api/productos'
+import { getProductos, getCategorias } from '../../api/productos'
 import { PageHeader } from '../../components/common/PageHeader'
 import { StatsCard } from '../../components/common/StatsCard'
 import { Spinner } from '../../components/ui/Spinner'
-import { formatCurrency, formatDate, formatDateShort } from '../../utils/format'
-import type { Venta, Producto } from '../../types'
+import { formatCurrency, formatDateShort } from '../../utils/format'
+import type { Venta, Producto, Categoria } from '../../types'
 
 const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4']
+
+// Solo estas categorías cuentan como "producto vendido" en los rankings
+const CATEGORIAS_PRINCIPALES = ['Tacos', 'Quesadillas']
 
 type Periodo = '7d' | '30d' | '3m'
 
 export default function Reportes() {
   const [ventas, setVentas] = useState<Venta[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
+  const [categorias, setCategorias] = useState<Categoria[]>([])
   const [loading, setLoading] = useState(true)
   const [periodo, setPeriodo] = useState<Periodo>('30d')
+  const [soloPrincipales, setSoloPrincipales] = useState(true)
 
   const getFechas = (p: Periodo): [string, string] => {
     const hoy = new Date()
@@ -45,11 +49,26 @@ export default function Reportes() {
     }
   }
 
-  useEffect(() => { getProductos().then(({ data }) => setProductos(data)) }, [])
+  useEffect(() => {
+    Promise.all([getProductos(), getCategorias()]).then(([p, c]) => {
+      setProductos(p.data)
+      setCategorias(c.data)
+    })
+  }, [])
   useEffect(() => { load(periodo) }, [periodo])
 
+  // Mapa categoria_id -> nombre categoría
+  const catMap: Record<number, string> = {}
+  categorias.forEach((c) => { catMap[c.id] = c.nombre })
+
+  // Determina si un producto es un "principal" (taco o quesadilla)
+  const esPrincipal = (productoId: number): boolean => {
+    const prod = productos.find((p) => p.id === productoId)
+    if (!prod || !prod.categoria_id) return false
+    return CATEGORIAS_PRINCIPALES.includes(catMap[prod.categoria_id])
+  }
+
   // Ventas por día
-  const [desde] = getFechas(periodo)
   const dias = periodo === '7d' ? 7 : periodo === '30d' ? 30 : 90
   const ventasPorDia = Array.from({ length: dias }, (_, i) => {
     const key = toDateInput(subDays(new Date(), dias - 1 - i).toISOString())
@@ -62,13 +81,17 @@ export default function Reportes() {
   ventas.forEach((v) => { pagoConteo[v.metodo_pago] = (pagoConteo[v.metodo_pago] ?? 0) + Number(v.total) })
   const pagoData = Object.entries(pagoConteo).map(([name, value]) => ({ name, value }))
 
-  // Producto más vendido
+  // Producto más vendido — filtra opcionalmente a solo tacos y quesadillas
   const getNombreProducto = (id: number) =>
     productos.find((p) => p.id === id)?.nombre ?? `Producto #${id}`
 
   const prodConteo: Record<number, { nombre: string; cantidad: number; revenue: number }> = {}
   ventas.forEach((v) =>
     v.detalles?.forEach((d) => {
+      // Filtro: ignorar extras/bebidas/guacamol cuando el toggle está activo
+      if (soloPrincipales && !esPrincipal(d.producto_id)) return
+      // Ignorar también precio 0 (guarniciones gratis) — si por alguna razón están en una categoría principal
+      if (Number(d.precio_unitario) === 0) return
       if (!prodConteo[d.producto_id]) prodConteo[d.producto_id] = { nombre: getNombreProducto(d.producto_id), cantidad: 0, revenue: 0 }
       prodConteo[d.producto_id].cantidad += d.cantidad
       prodConteo[d.producto_id].revenue += Number(d.subtotal)
@@ -80,6 +103,15 @@ export default function Reportes() {
   const ticketPromedio = ventas.length > 0 ? totalVentas / ventas.length : 0
   const ventasDia = ventasPorDia.filter((d) => d.total > 0).length
   const promedioDiario = ventasDia > 0 ? totalVentas / ventasDia : 0
+
+  // Unidades principales totales (tacos + quesadillas)
+  const unidadesPrincipales = ventas.reduce((sum, v) => {
+    return sum + (v.detalles?.reduce((s, d) => {
+      if (!esPrincipal(d.producto_id)) return s
+      if (Number(d.precio_unitario) === 0) return s
+      return s + d.cantidad
+    }, 0) ?? 0)
+  }, 0)
 
   return (
     <div>
@@ -112,7 +144,7 @@ export default function Reportes() {
             <StatsCard title="Total ventas" value={formatCurrency(totalVentas)} subtitle={`${ventas.length} transacciones`} icon={<span className="text-lg">💰</span>} iconBg="bg-brand-500" />
             <StatsCard title="Ticket promedio" value={formatCurrency(ticketPromedio)} subtitle="Por transacción" icon={<span className="text-lg">🧾</span>} iconBg="bg-blue-500" />
             <StatsCard title="Promedio diario" value={formatCurrency(promedioDiario)} subtitle={`${ventasDia} días con ventas`} icon={<span className="text-lg">📅</span>} iconBg="bg-purple-500" />
-            <StatsCard title="Mejor producto" value={topProductos[0]?.nombre ?? '—'} subtitle={topProductos[0] ? `${topProductos[0].cantidad} uds vendidas` : ''} icon={<span className="text-lg">⭐</span>} iconBg="bg-green-500" />
+            <StatsCard title="Tacos + Quesadillas" value={`${unidadesPrincipales} uds`} subtitle="Platillos principales" icon={<span className="text-lg">🌮</span>} iconBg="bg-green-500" />
           </div>
 
           {/* Gráfica de ventas */}
@@ -139,15 +171,38 @@ export default function Reportes() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Top productos */}
             <div className="card p-5">
-              <h3 className="font-semibold text-gray-900 mb-4">Productos más vendidos</h3>
+              <div className="flex items-start justify-between mb-4 gap-3">
+                <div>
+                  <h3 className="font-semibold text-gray-900">Productos más vendidos</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {soloPrincipales ? 'Solo tacos y quesadillas' : 'Todas las categorías'}
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={soloPrincipales}
+                    onChange={(e) => setSoloPrincipales(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                  />
+                  Solo platillos
+                </label>
+              </div>
               {topProductos.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-6">Sin datos</p>
+                <p className="text-sm text-gray-400 text-center py-6">
+                  {soloPrincipales ? 'Sin ventas de tacos o quesadillas en el período' : 'Sin datos'}
+                </p>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={topProductos} layout="vertical" margin={{ top: 0, right: 20, left: 60, bottom: 0 }}>
+                  <BarChart data={topProductos} layout="vertical" margin={{ top: 0, right: 40, left: 60, bottom: 0 }}>
                     <XAxis type="number" tick={{ fontSize: 11 }} />
-                    <YAxis type="category" dataKey="nombre" tick={{ fontSize: 11 }} width={100} />
-                    <Tooltip formatter={(v: number) => [`${v} uds`, 'Vendidas']} />
+                    <YAxis type="category" dataKey="nombre" tick={{ fontSize: 11 }} width={110} />
+                    <Tooltip
+                      formatter={(v: number, _n: string, entry) => {
+                        const rev = (entry.payload as { revenue?: number } | undefined)?.revenue
+                        return [`${v} uds · ${formatCurrency(rev ?? 0)}`, 'Vendidas']
+                      }}
+                    />
                     <Bar dataKey="cantidad" fill="#f59e0b" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -171,6 +226,45 @@ export default function Reportes() {
               )}
             </div>
           </div>
+
+          {/* Tabla top productos con revenue */}
+          {topProductos.length > 0 && (
+            <div className="card">
+              <div className="p-5 border-b border-gray-100">
+                <h3 className="font-semibold text-gray-900">
+                  Detalle · {soloPrincipales ? 'Tacos y Quesadillas' : 'Todos los productos'}
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="table-th">#</th>
+                      <th className="table-th">Producto</th>
+                      <th className="table-th text-right">Unidades</th>
+                      <th className="table-th text-right">Ingresos</th>
+                      <th className="table-th text-right">% del total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topProductos.map((p, i) => {
+                      const totalUds = topProductos.reduce((s, x) => s + x.cantidad, 0)
+                      const pct = totalUds > 0 ? (p.cantidad / totalUds * 100) : 0
+                      return (
+                        <tr key={p.nombre} className="table-tr">
+                          <td className="table-td text-gray-400 font-mono">{i + 1}</td>
+                          <td className="table-td font-medium">{p.nombre}</td>
+                          <td className="table-td text-right font-semibold">{p.cantidad}</td>
+                          <td className="table-td text-right">{formatCurrency(p.revenue)}</td>
+                          <td className="table-td text-right text-gray-500">{pct.toFixed(1)}%</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

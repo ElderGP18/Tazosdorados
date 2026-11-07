@@ -17,4 +17,4 @@ export const deleteProducto = (id: number) =>
   apiClient.delete(`/productos/${id}`)
 
 export const getCategorias = () =>
-  apiClient.get<{ id: number; nombre: string }[]>('/categorias')
+  apiClient.get<Array<{ id: number; nombre: string; descripcion?: string; activo: boolean }>>('/categorias')
