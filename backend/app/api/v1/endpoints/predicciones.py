@@ -246,11 +246,12 @@ def recomendaciones_compra(
         # Descontar stock que vencerá antes de usarse (merma FIFO)
         disponible_efectivo, merma_estimada = _stock_efectivo(ing_id, disponible_raw)
 
-        # Comprar lo que falta + stock mínimo de seguridad
-        a_comprar = max(0.0, necesario - disponible_efectivo + minimo)
+        # Comprar exactamente lo que falta (sin sumar el mínimo de seguridad)
+        a_comprar = max(0.0, necesario - disponible_efectivo)
         costo_estimado = round(a_comprar * data["costo_unitario"], 2)
         costo_merma = round(merma_estimada * data["costo_unitario"], 2)
 
+        # Prioridad: alta si queda por debajo del mínimo tras usar el stock útil; media si solo hay que reponer.
         prioridad = "alta" if a_comprar > 0 and disponible_efectivo < minimo else \
                     "media" if a_comprar > 0 else "ok"
 

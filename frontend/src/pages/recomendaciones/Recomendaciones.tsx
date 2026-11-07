@@ -136,8 +136,8 @@ export default function Recomendaciones() {
           <div className="flex items-start gap-2 text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5">
             <TrendingUp size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
             <p>
-              Fórmula: <b>a comprar</b> = necesidad ML para {diasProyectados} días − stock útil (sin merma) + stock mínimo de seguridad.
-              La merma se resta antes de calcular, así no compramos encima de lo que ya se va a echar a perder.
+              <b>A comprar</b> = lo que se necesita para {diasProyectados} días − lo que ya tienes útil (sin la merma).
+              Si la cantidad a comprar deja el stock por debajo del mínimo, el ingrediente se marca <b>Urgente</b>.
             </p>
           </div>
 
