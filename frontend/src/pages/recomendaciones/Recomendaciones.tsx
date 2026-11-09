@@ -89,27 +89,31 @@ export default function Recomendaciones() {
 
           {/* ── HERO: total a gastar ────────────────────────────────── */}
           {resumen && (
-            <div className="rounded-3xl bg-gradient-to-br from-brand-500 to-orange-500 text-white p-6 shadow-lg">
-              <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="relative rounded-3xl hero-gradient text-white p-6 shadow-xl overflow-hidden animate-scale-in">
+              {/* Patrón decorativo */}
+              <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
+              <div className="absolute -left-6 -bottom-6 w-32 h-32 bg-black/10 rounded-full blur-2xl" />
+
+              <div className="relative flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <p className="text-xs uppercase tracking-widest text-white/80 font-semibold">Total a gastar</p>
-                  <p className="text-5xl font-bold leading-none mt-1">{formatCurrency(resumen.total_costo_compra)}</p>
-                  <p className="text-sm text-white/90 mt-2">
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/80 font-semibold">Total a gastar</p>
+                  <p className="font-display text-6xl font-black leading-none mt-1 drop-shadow-sm">{formatCurrency(resumen.total_costo_compra)}</p>
+                  <p className="text-sm text-white/90 mt-2 font-medium">
                     {resumen.items_a_comprar} ingrediente{resumen.items_a_comprar !== 1 ? 's' : ''} · próximos {diasProyectados} días
                   </p>
                 </div>
 
                 <div className="flex gap-3">
                   {resumen.items_alta > 0 && (
-                    <div className="bg-white/15 backdrop-blur-sm rounded-xl px-4 py-3 text-center min-w-[100px]">
-                      <p className="text-3xl font-bold">{resumen.items_alta}</p>
-                      <p className="text-xs text-white/90 font-medium">Urgentes</p>
+                    <div className="bg-white/15 backdrop-blur-md rounded-2xl px-5 py-3 text-center min-w-[100px] ring-1 ring-white/20">
+                      <p className="font-display text-4xl font-bold">{resumen.items_alta}</p>
+                      <p className="text-xs text-white/90 font-semibold uppercase tracking-wide">Urgentes</p>
                     </div>
                   )}
                   {resumen.items_media > 0 && (
-                    <div className="bg-white/15 backdrop-blur-sm rounded-xl px-4 py-3 text-center min-w-[100px]">
-                      <p className="text-3xl font-bold">{resumen.items_media}</p>
-                      <p className="text-xs text-white/90 font-medium">A reponer</p>
+                    <div className="bg-white/15 backdrop-blur-md rounded-2xl px-5 py-3 text-center min-w-[100px] ring-1 ring-white/20">
+                      <p className="font-display text-4xl font-bold">{resumen.items_media}</p>
+                      <p className="text-xs text-white/90 font-semibold uppercase tracking-wide">A reponer</p>
                     </div>
                   )}
                 </div>
@@ -152,14 +156,17 @@ export default function Recomendaciones() {
           {/* ── Vista LISTA (limpia, solo lo que hay que comprar) ──── */}
           {vista === 'lista' && (
             <div className="card overflow-hidden">
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-gray-100 stagger">
                 {toCompras.map((r) => {
                   const cfg = prioridadConfig[r.prioridad]
                   const hasMerma = r.merma_estimada > 0
                   return (
-                    <div key={r.ingrediente_id} className={`relative flex items-center gap-4 px-5 py-4 ${cfg.row}`}>
+                    <div
+                      key={r.ingrediente_id}
+                      className={`relative flex items-center gap-4 px-5 py-4 ${cfg.row} animate-fade-in-up transition-colors hover:bg-brand-50/40 group`}
+                    >
                       {/* Línea vertical de color (indicador de prioridad) */}
-                      <span className={`absolute left-0 top-0 bottom-0 w-1 ${cfg.stripe}`} />
+                      <span className={`absolute left-0 top-0 bottom-0 w-1 ${cfg.stripe} transition-all group-hover:w-1.5`} />
 
                       {/* Nombre + badge */}
                       <div className="flex-1 min-w-0 pl-2">
@@ -179,7 +186,7 @@ export default function Recomendaciones() {
 
                       {/* Cantidad grande + costo */}
                       <div className="text-right flex-shrink-0">
-                        <p className="text-3xl font-bold text-gray-900 leading-none">
+                        <p className="font-display text-3xl font-black text-gray-900 leading-none">
                           {r.cantidad_a_comprar.toFixed(2)}
                         </p>
                         <p className="text-xs text-gray-500 font-medium mt-0.5">{r.unidad_medida}</p>
@@ -195,13 +202,13 @@ export default function Recomendaciones() {
               </div>
 
               {/* Footer con total */}
-              <div className="bg-gray-50 border-t-2 border-gray-200 px-5 py-4 flex items-center justify-between">
+              <div className="bg-gradient-to-r from-gray-50 to-brand-50/40 border-t-2 border-gray-200 px-5 py-4 flex items-center justify-between">
                 <span className="text-sm font-semibold text-gray-700">
                   {toCompras.length} ingrediente{toCompras.length !== 1 ? 's' : ''}
                 </span>
                 <div className="text-right">
                   <p className="text-xs text-gray-500 uppercase tracking-wide">Total</p>
-                  <p className="text-2xl font-bold text-gray-900">{formatCurrency(resumen?.total_costo_compra ?? 0)}</p>
+                  <p className="font-display text-3xl font-black text-gray-900">{formatCurrency(resumen?.total_costo_compra ?? 0)}</p>
                 </div>
               </div>
             </div>

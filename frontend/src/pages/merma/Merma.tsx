@@ -220,12 +220,12 @@ export default function Merma() {
         <div className="space-y-5">
           {/* ── TOTALES: lo más importante arriba ───────────────────── */}
           {totales && (
-            <div className={`rounded-2xl border-2 p-5 ${totales.costo_merma > 0 ? 'border-red-200 bg-gradient-to-br from-red-50 to-orange-50' : 'border-green-200 bg-green-50'}`}>
+            <div className={`rounded-2xl border-2 p-5 shadow-sm animate-scale-in ${totales.costo_merma > 0 ? 'border-red-200 bg-gradient-to-br from-red-50 to-orange-50' : 'border-green-200 bg-green-50'}`}>
               <div className="flex items-center gap-2 mb-4">
                 <AlertTriangle size={18} className={totales.costo_merma > 0 ? 'text-red-600' : 'text-green-600'} />
-                <h3 className="font-bold text-gray-900 text-lg">
+                <h3 className="font-display font-bold text-gray-900 text-xl">
                   {totales.costo_merma > 0
-                    ? `Estás perdiendo ${formatCurrency(totales.costo_merma)} en merma`
+                    ? <>Estás perdiendo <span className="text-red-700">{formatCurrency(totales.costo_merma)}</span> en merma</>
                     : '✓ No hay merma — todo el stock se puede usar'}
                 </h3>
               </div>
@@ -290,9 +290,11 @@ export default function Merma() {
           )}
 
           {/* Lista de ingredientes */}
-          <div className="card divide-y divide-gray-100">
+          <div className="card divide-y divide-gray-100 stagger">
             {lista.map((item) => (
-              <IngredienteCard key={item.ingrediente_id} item={item} />
+              <div key={item.ingrediente_id} className="animate-fade-in-up">
+                <IngredienteCard item={item} />
+              </div>
             ))}
           </div>
         </div>

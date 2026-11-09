@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ShoppingCart, Package, Layers, BookOpen,
   Archive, TrendingUp, ShoppingBag, AlertTriangle, BarChart2,
-  LogOut, ChevronLeft, ChevronRight, Flame, ArrowLeftRight, X,
+  LogOut, ChevronLeft, ChevronRight, ArrowLeftRight, X,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 
@@ -53,53 +53,66 @@ export function Sidebar({ collapsed, onToggle, onClose }: SidebarProps) {
 
   return (
     <aside
-      className={`fixed top-0 left-0 h-full bg-gray-900 z-30 flex flex-col transition-all duration-300 ${
+      className={`fixed top-0 left-0 h-full z-30 flex flex-col transition-all duration-300 ease-out ${
         collapsed ? 'w-16' : 'w-60'
       }`}
+      style={{
+        background: 'linear-gradient(180deg, #1c1917 0%, #0c0a09 100%)',
+        boxShadow: '4px 0 24px -4px rgba(0,0,0,0.3)',
+      }}
     >
-      {/* Logo */}
-      <div className={`flex items-center h-16 px-4 border-b border-white/10 ${collapsed ? 'justify-center' : 'gap-3'}`}>
-        <div className="flex-shrink-0 w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
-          <Flame size={16} className="text-white" />
+      {/* ── Logo header ──────────────────────────────────── */}
+      <div className={`flex items-center h-20 px-4 border-b border-white/5 ${collapsed ? 'justify-center' : 'gap-3'}`}>
+        <div className="relative flex-shrink-0">
+          <div className="absolute inset-0 bg-brand-500 blur-lg opacity-40 rounded-full" />
+          <img
+            src="/logo.jpg"
+            alt="Tazos Dorados"
+            className={`relative rounded-full ring-2 ring-brand-400/60 shadow-lg object-cover ${collapsed ? 'w-10 h-10' : 'w-12 h-12'}`}
+          />
         </div>
         {!collapsed && (
-          <div className="flex-1">
-            <p className="text-white font-bold text-sm leading-tight">Tazos</p>
-            <p className="text-brand-400 text-xs font-medium">Dorados</p>
+          <div className="flex-1 animate-fade-in">
+            <p className="font-display font-black text-white text-lg leading-none tracking-wide">TAZOS</p>
+            <p className="font-display font-bold text-brand-400 text-sm leading-tight tracking-widest">DORADOS</p>
           </div>
         )}
-        {/* Botón cerrar en mobile */}
         {!collapsed && onClose && (
-          <button onClick={onClose} className="text-gray-400 hover:text-white lg:hidden">
+          <button onClick={onClose} className="text-gray-400 hover:text-white lg:hidden transition-colors">
             <X size={18} />
           </button>
         )}
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
+      {/* ── Navegación ───────────────────────────────────── */}
+      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5 stagger">
         {visible.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             onClick={onClose}
             className={({ isActive }) =>
-              `sidebar-link ${isActive ? 'active' : ''} ${collapsed ? 'justify-center' : ''}`
+              `sidebar-link animate-slide-in ${isActive ? 'active' : ''} ${collapsed ? 'justify-center px-0' : ''}`
             }
             title={collapsed ? item.label : undefined}
           >
-            <span className="flex-shrink-0">{item.icon}</span>
-            {!collapsed && <span>{item.label}</span>}
+            <span className="flex-shrink-0 relative z-10">{item.icon}</span>
+            {!collapsed && <span className="relative z-10">{item.label}</span>}
           </NavLink>
         ))}
       </nav>
 
-      {/* User + Logout */}
-      <div className="border-t border-white/10 p-3">
+      {/* ── Usuario + Logout ─────────────────────────────── */}
+      <div className="border-t border-white/5 p-3">
         {!collapsed && user && (
-          <div className="mb-2 px-2">
-            <p className="text-white text-xs font-semibold truncate">{user.nombre}</p>
-            <p className="text-gray-400 text-xs">{rolLabel[user.rol] ?? user.rol}</p>
+          <div className="mb-2 px-2 flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white text-xs font-bold shadow-md">
+              {user.nombre?.charAt(0).toUpperCase() ?? 'U'}
+            </div>
+            <div className="min-w-0">
+              <p className="text-white text-xs font-semibold truncate">{user.nombre}</p>
+              <p className="text-brand-400/70 text-[10px] uppercase tracking-wide">{rolLabel[user.rol] ?? user.rol}</p>
+            </div>
           </div>
         )}
         <button
@@ -115,8 +128,9 @@ export function Sidebar({ collapsed, onToggle, onClose }: SidebarProps) {
       {/* Collapse toggle — solo desktop */}
       <button
         onClick={onToggle}
-        className="absolute -right-3 top-20 w-6 h-6 bg-gray-700 hover:bg-gray-600 text-white
-                   rounded-full hidden lg:flex items-center justify-center shadow-md transition-colors"
+        className="absolute -right-3 top-24 w-6 h-6 bg-brand-500 hover:bg-brand-600 text-white
+                   rounded-full hidden lg:flex items-center justify-center shadow-lg transition-all
+                   hover:scale-110 ring-2 ring-stone-900"
       >
         {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
       </button>

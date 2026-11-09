@@ -149,33 +149,39 @@ def recomendaciones_compra(
                 unidades_por_producto.get(pid, 0.0) + prod["unidades_predichas"]
             )
 
-    # Cargar recetas — incluye TODOS los ingredientes activos (tortilla, carne, salsas, etc.)
+    # Cargar TODOS los ingredientes activos (aunque no estén en ninguna receta — así
+    # un ingrediente con stock bajo el mínimo aparece también si no se consume en recetas).
+    ingredientes_rows = db.execute(text("""
+        SELECT id, nombre, unidad_medida, costo_unitario
+        FROM ingredientes
+        WHERE activo = 1
+    """)).fetchall()
+
+    necesidad: dict[int, dict] = {}
+    for ing_id, nombre, unidad, costo in ingredientes_rows:
+        necesidad[ing_id] = {
+            "ingrediente_id": ing_id,
+            "nombre": nombre,
+            "unidad_medida": unidad,
+            "costo_unitario": float(costo),
+            "cantidad_necesaria": 0.0,
+        }
+
+    # Cargar recetas y sumar la necesidad real por ingrediente
     recetas_sql = text("""
-        SELECT rd.producto_id, rd.ingrediente_id, rd.cantidad,
-               i.nombre, i.unidad_medida, i.costo_unitario
+        SELECT rd.producto_id, rd.ingrediente_id, rd.cantidad
         FROM recetas_detalle rd
         JOIN ingredientes i ON i.id = rd.ingrediente_id
         WHERE i.activo = 1
     """)
     recetas = db.execute(recetas_sql).fetchall()
-
-    # Calcular necesidad total por ingrediente (TODOS los ingredientes de todas las recetas)
-    necesidad: dict[int, dict] = {}
-    for r in recetas:
-        prod_id, ing_id, cant_receta, nombre, unidad, costo = r
-        unidades = unidades_por_producto.get(prod_id, 0.0)
-        cantidad_necesaria = float(cant_receta) * unidades
+    for prod_id, ing_id, cant_receta in recetas:
         if ing_id not in necesidad:
-            necesidad[ing_id] = {
-                "ingrediente_id": ing_id,
-                "nombre": nombre,
-                "unidad_medida": unidad,
-                "costo_unitario": float(costo),
-                "cantidad_necesaria": 0.0,
-            }
-        necesidad[ing_id]["cantidad_necesaria"] += cantidad_necesaria
+            continue
+        unidades = unidades_por_producto.get(prod_id, 0.0)
+        necesidad[ing_id]["cantidad_necesaria"] += float(cant_receta) * unidades
 
-    # Cargar stock actual
+    # Cargar stock actual (incluye mínimos)
     stock_sql = text("""
         SELECT ingrediente_id, cantidad_disponible, cantidad_minima
         FROM stock
@@ -246,14 +252,23 @@ def recomendaciones_compra(
         # Descontar stock que vencerá antes de usarse (merma FIFO)
         disponible_efectivo, merma_estimada = _stock_efectivo(ing_id, disponible_raw)
 
-        # Comprar exactamente lo que falta (sin sumar el mínimo de seguridad)
-        a_comprar = max(0.0, necesario - disponible_efectivo)
+        # Objetivo = lo mayor entre (demanda proyectada) y (stock mínimo configurado).
+        # Así un ingrediente bajo el mínimo SIEMPRE aparece aunque la demanda sea baja.
+        objetivo = max(necesario, minimo)
+        a_comprar = max(0.0, objetivo - disponible_efectivo)
         costo_estimado = round(a_comprar * data["costo_unitario"], 2)
         costo_merma = round(merma_estimada * data["costo_unitario"], 2)
 
-        # Prioridad: alta si queda por debajo del mínimo tras usar el stock útil; media si solo hay que reponer.
-        prioridad = "alta" if a_comprar > 0 and disponible_efectivo < minimo else \
-                    "media" if a_comprar > 0 else "ok"
+        # Prioridad:
+        #   alta  = stock útil ya está por debajo del mínimo (crítico)
+        #   media = hay que comprar para cubrir demanda pero stock >= mínimo
+        #   ok    = no hay que comprar nada
+        if a_comprar <= 0:
+            prioridad = "ok"
+        elif disponible_efectivo < minimo:
+            prioridad = "alta"
+        else:
+            prioridad = "media"
 
         if a_comprar > 0:
             items_a_comprar += 1
