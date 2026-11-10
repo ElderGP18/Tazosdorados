@@ -66,7 +66,7 @@ export function Sidebar({ collapsed, onToggle, onClose }: SidebarProps) {
         <div className="relative flex-shrink-0">
           <div className="absolute inset-0 bg-brand-500 blur-lg opacity-40 rounded-full" />
           <img
-            src="/logo.jpg"
+            src="/logo.png"
             alt="Tazos Dorados"
             className={`relative rounded-full ring-2 ring-brand-400/60 shadow-lg object-cover ${collapsed ? 'w-10 h-10' : 'w-12 h-12'}`}
           />

@@ -207,8 +207,14 @@ def recomendaciones_compra(
 
     def _stock_efectivo(ing_id: int, stock_actual: float) -> tuple[float, float]:
         """Devuelve (stock_utilizable, stock_en_merma) considerando FIFO.
-        Las salidas (ventas) consumen el lote más antiguo primero → merma se reduce primero."""
-        vida = _vida_util(necesidad.get(ing_id, {}).get("nombre", ""))
+
+        Merma = solo lotes YA vencidos o en estado 'alto' (≤25% vida útil restante).
+        Es la MISMA definición que usa la página de Control de merma, para que ambas
+        vistas sean coherentes entre sí. Un lote fresco (vence en 5 días) NO cuenta
+        como merma aquí, aunque el período proyectado sea de 7 días — asumimos que
+        el consumo FIFO lo gasta antes."""
+        nombre_ing = necesidad.get(ing_id, {}).get("nombre", "")
+        vida = _vida_util(nombre_ing)
         if vida >= 60:
             return stock_actual, 0.0
         entradas = entradas_por_ing.get(ing_id, [])
@@ -228,8 +234,9 @@ def recomendaciones_compra(
             fecha_entrada = _to_aware(e["fecha"])
             dias_en_stock = (ahora - fecha_entrada).days
             dias_restantes = vida - dias_en_stock
-            # Si este lote vence antes de que termine el período proyectado, es merma
-            if dias_restantes < dias:
+            # Mismo criterio que riesgo-merma: vencido o estado 'alto' (pct <= 25%)
+            pct_restante = (dias_restantes / vida) * 100 if vida > 0 else 0
+            if dias_restantes <= 0 or pct_restante <= 25:
                 en_merma += restante
 
         utilizable = max(0.0, stock_actual - en_merma)

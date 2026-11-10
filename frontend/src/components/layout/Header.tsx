@@ -39,7 +39,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
         </button>
         {/* Logo pequeño en mobile */}
         <img
-          src="/logo.jpg"
+          src="/logo.png"
           alt=""
           className="lg:hidden w-9 h-9 rounded-full ring-2 ring-brand-300 object-cover"
         />

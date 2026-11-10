@@ -58,7 +58,7 @@ export default function Login() {
           <div className="inline-block relative mb-5 animate-float">
             <div className="absolute inset-0 bg-brand-400 blur-2xl opacity-60 rounded-full" />
             <img
-              src="/logo.jpg"
+              src="/logo.png"
               alt="Tazos Dorados"
               className="relative w-28 h-28 rounded-full ring-4 ring-brand-400/80 shadow-2xl object-cover"
             />

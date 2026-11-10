@@ -4,13 +4,12 @@ import { getRecomendacionesCompra } from '../../api/predicciones'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Spinner } from '../../components/ui/Spinner'
 import { EmptyState } from '../../components/common/EmptyState'
-import { formatCurrency } from '../../utils/format'
 import type { RecomendacionCompra, ResumenRecomendaciones } from '../../types'
 
 const prioridadConfig = {
-  alta:  { label: 'Urgente',   badge: 'bg-red-500 text-white',       stripe: 'bg-red-500',    row: 'bg-red-50/40' },
+  alta:  { label: 'Urgente',   badge: 'bg-red-500 text-white',         stripe: 'bg-red-500',    row: 'bg-red-50/40' },
   media: { label: 'Comprar',   badge: 'bg-yellow-400 text-yellow-900', stripe: 'bg-yellow-400', row: '' },
-  ok:    { label: 'Stock OK',  badge: 'bg-green-500 text-white',      stripe: 'bg-green-500',  row: '' },
+  ok:    { label: 'Stock OK',  badge: 'bg-green-500 text-white',        stripe: 'bg-green-500',  row: '' },
 }
 
 export default function Recomendaciones() {
@@ -87,19 +86,20 @@ export default function Recomendaciones() {
       ) : (
         <div className="space-y-5">
 
-          {/* ── HERO: total a gastar ────────────────────────────────── */}
+          {/* ── HERO: cuántos ingredientes comprar ──────────────────── */}
           {resumen && (
             <div className="relative rounded-3xl hero-gradient text-white p-6 shadow-xl overflow-hidden animate-scale-in">
-              {/* Patrón decorativo */}
               <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
               <div className="absolute -left-6 -bottom-6 w-32 h-32 bg-black/10 rounded-full blur-2xl" />
 
-              <div className="relative flex items-center justify-between flex-wrap gap-4">
+              <div className="relative flex items-center justify-between flex-wrap gap-5">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/80 font-semibold">Total a gastar</p>
-                  <p className="font-display text-6xl font-black leading-none mt-1 drop-shadow-sm">{formatCurrency(resumen.total_costo_compra)}</p>
-                  <p className="text-sm text-white/90 mt-2 font-medium">
-                    {resumen.items_a_comprar} ingrediente{resumen.items_a_comprar !== 1 ? 's' : ''} · próximos {diasProyectados} días
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/80 font-semibold">Lista de compras</p>
+                  <p className="font-display text-6xl font-black leading-none mt-1 drop-shadow-sm">
+                    {resumen.items_a_comprar}
+                  </p>
+                  <p className="text-sm text-white/95 mt-1 font-medium">
+                    ingrediente{resumen.items_a_comprar !== 1 ? 's' : ''} que debes comprar · próximos {diasProyectados} días
                   </p>
                 </div>
 
@@ -121,29 +121,18 @@ export default function Recomendaciones() {
             </div>
           )}
 
-          {/* Aviso merma si aplica */}
-          {resumen && resumen.total_costo_merma > 0 && (
-            <div className="flex items-start gap-2 text-sm text-red-800 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-              <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
-              <p>
-                <b>{formatCurrency(resumen.total_costo_merma)}</b> del stock actual vencerá antes de usarse — ya descontado del cálculo de compras.
-                Revísalo en <b>Control de merma</b>.
-              </p>
-            </div>
-          )}
-
           {/* Switch de vistas */}
           <div className="flex items-center justify-between">
             <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
               <button
                 onClick={() => setVista('lista')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-1.5 ${vista === 'lista' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-1.5 transition-all ${vista === 'lista' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 <ShoppingCart size={14} /> Lista
               </button>
               <button
                 onClick={() => setVista('compra')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-1.5 ${vista === 'compra' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-1.5 transition-all ${vista === 'compra' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 <ListChecks size={14} /> Marcar comprados
               </button>
@@ -153,7 +142,7 @@ export default function Recomendaciones() {
             </button>
           </div>
 
-          {/* ── Vista LISTA (limpia, solo lo que hay que comprar) ──── */}
+          {/* ── Vista LISTA (solo nombre + cantidad, sin precios) ───── */}
           {vista === 'lista' && (
             <div className="card overflow-hidden">
               <div className="divide-y divide-gray-100 stagger">
@@ -163,15 +152,15 @@ export default function Recomendaciones() {
                   return (
                     <div
                       key={r.ingrediente_id}
-                      className={`relative flex items-center gap-4 px-5 py-4 ${cfg.row} animate-fade-in-up transition-colors hover:bg-brand-50/40 group`}
+                      className={`relative flex items-center gap-4 px-5 py-5 ${cfg.row} animate-fade-in-up transition-all hover:bg-brand-50/50 group`}
                     >
                       {/* Línea vertical de color (indicador de prioridad) */}
-                      <span className={`absolute left-0 top-0 bottom-0 w-1 ${cfg.stripe} transition-all group-hover:w-1.5`} />
+                      <span className={`absolute left-0 top-0 bottom-0 w-1.5 ${cfg.stripe} transition-all group-hover:w-2`} />
 
                       {/* Nombre + badge */}
                       <div className="flex-1 min-w-0 pl-2">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-bold text-gray-900 text-base">{r.nombre}</p>
+                          <p className="font-bold text-gray-900 text-lg">{r.nombre}</p>
                           <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${cfg.badge}`}>
                             {cfg.label}
                           </span>
@@ -179,49 +168,45 @@ export default function Recomendaciones() {
                         {hasMerma && (
                           <p className="text-xs text-orange-600 flex items-center gap-1 mt-1">
                             <AlertTriangle size={11} />
-                            {r.merma_estimada.toFixed(2)} {r.unidad_medida} vencerá antes de usarse
+                            {r.merma_estimada.toFixed(2)} {r.unidad_medida} vencidos o por vencer
                           </p>
                         )}
                       </div>
 
-                      {/* Cantidad grande + costo */}
+                      {/* Solo cantidad grande + unidad */}
                       <div className="text-right flex-shrink-0">
-                        <p className="font-display text-3xl font-black text-gray-900 leading-none">
+                        <p className="font-display text-4xl font-black text-gray-900 leading-none">
                           {r.cantidad_a_comprar.toFixed(2)}
                         </p>
-                        <p className="text-xs text-gray-500 font-medium mt-0.5">{r.unidad_medida}</p>
-                        {r.costo_estimado > 0 && (
-                          <p className="text-base font-bold text-brand-600 mt-1.5">
-                            {formatCurrency(r.costo_estimado)}
-                          </p>
-                        )}
+                        <p className="text-sm text-brand-600 font-semibold mt-1 uppercase tracking-wide">{r.unidad_medida}</p>
                       </div>
                     </div>
                   )
                 })}
               </div>
 
-              {/* Footer con total */}
+              {/* Footer resumen */}
               <div className="bg-gradient-to-r from-gray-50 to-brand-50/40 border-t-2 border-gray-200 px-5 py-4 flex items-center justify-between">
                 <span className="text-sm font-semibold text-gray-700">
-                  {toCompras.length} ingrediente{toCompras.length !== 1 ? 's' : ''}
+                  {toCompras.length} ingrediente{toCompras.length !== 1 ? 's' : ''} en la lista
                 </span>
-                <div className="text-right">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Total</p>
-                  <p className="font-display text-3xl font-black text-gray-900">{formatCurrency(resumen?.total_costo_compra ?? 0)}</p>
-                </div>
+                <span className="text-xs text-gray-500">
+                  Para {diasProyectados} día{diasProyectados !== 1 ? 's' : ''} de operación
+                </span>
               </div>
             </div>
           )}
 
           {/* ── Vista MARCAR COMPRADOS (checkboxes, imprimible) ────── */}
           {vista === 'compra' && (
-            <div className="card print:shadow-none print:border-0">
+            <div className="card print:shadow-none print:border-0 animate-fade-in">
               <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-                <h3 className="font-bold text-lg text-gray-900">Lista de compra</h3>
+                <h3 className="font-display font-bold text-xl text-gray-900">Lista de compras</h3>
                 <div className="text-right">
-                  <p className="text-xs text-gray-400">Total</p>
-                  <p className="text-2xl font-bold text-brand-600">{formatCurrency(resumen?.total_costo_compra ?? 0)}</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide">Faltan</p>
+                  <p className="font-display text-2xl font-bold text-brand-600">
+                    {toCompras.length - Object.values(checked).filter(Boolean).length}
+                  </p>
                 </div>
               </div>
               <div className="divide-y divide-gray-100">
@@ -244,17 +229,17 @@ export default function Recomendaciones() {
                       <span className="hidden print:inline-block w-6 h-6 border-2 border-gray-400 rounded flex-shrink-0" />
 
                       <div className={`flex-1 min-w-0 pl-1 ${isChecked ? 'line-through' : ''}`}>
-                        <p className="font-bold text-gray-900">{r.nombre}</p>
+                        <p className="font-bold text-gray-900 text-base">{r.nombre}</p>
                         {r.prioridad === 'alta' && (
                           <p className="text-xs text-red-600 font-semibold uppercase tracking-wide mt-0.5">Urgente</p>
                         )}
                       </div>
 
                       <div className={`text-right flex-shrink-0 ${isChecked ? 'line-through' : ''}`}>
-                        <p className="text-xl font-bold text-gray-900">
-                          {r.cantidad_a_comprar.toFixed(2)} <span className="text-sm font-normal text-gray-400">{r.unidad_medida}</span>
+                        <p className="font-display text-2xl font-bold text-gray-900 leading-none">
+                          {r.cantidad_a_comprar.toFixed(2)}
                         </p>
-                        <p className="text-sm font-bold text-brand-600">{formatCurrency(r.costo_estimado)}</p>
+                        <p className="text-xs text-brand-600 font-semibold mt-0.5 uppercase tracking-wide">{r.unidad_medida}</p>
                       </div>
                     </label>
                   )
@@ -267,8 +252,10 @@ export default function Recomendaciones() {
                   {Object.values(checked).filter(Boolean).length} de {toCompras.length} marcados
                 </div>
                 <div className="text-right ml-auto">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Total</p>
-                  <p className="text-2xl font-bold text-gray-900">{formatCurrency(resumen?.total_costo_compra ?? 0)}</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Listos</p>
+                  <p className="font-display text-xl font-bold text-gray-900">
+                    {Object.values(checked).filter(Boolean).length}/{toCompras.length}
+                  </p>
                 </div>
               </div>
             </div>
