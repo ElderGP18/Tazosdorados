@@ -83,14 +83,19 @@ def cobertura_stock(db: Session = Depends(get_db)):
 
     Respuesta: lista de {ingrediente_id, demanda_diaria, dias_actual, dias_minimo}
     """
-    # Demanda diaria por producto (ventas pagadas últimos 28 días / días con ventas)
+    # Demanda diaria por producto (TODAS las ventas últimos 28 días, incluso
+    # guarniciones gratis: guacamol, salsas y limon se cuentan porque
+    # consumen stock aunque no se cobren aparte).
     demanda_prod_sql = text("""
         SELECT dv.producto_id,
-               SUM(dv.cantidad) / GREATEST(COUNT(DISTINCT DATE(v.fecha)), 1) AS uds_dia
+               SUM(dv.cantidad) / GREATEST((
+                   SELECT COUNT(DISTINCT DATE(v2.fecha))
+                     FROM ventas v2
+                    WHERE v2.fecha >= DATE_SUB(NOW(), INTERVAL 28 DAY)
+               ), 1) AS uds_dia
           FROM detalles_venta dv
           JOIN ventas v ON v.id = dv.venta_id
-         WHERE dv.precio_unitario > 0
-           AND v.fecha >= DATE_SUB(NOW(), INTERVAL 28 DAY)
+         WHERE v.fecha >= DATE_SUB(NOW(), INTERVAL 28 DAY)
          GROUP BY dv.producto_id
     """)
     demanda_rows = db.execute(demanda_prod_sql).fetchall()
