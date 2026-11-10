@@ -58,7 +58,7 @@ export default function Recomendaciones() {
               className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white"
               disabled={loading}
             >
-              {[3, 7, 14, 21, 30].map((d) => (
+              {[3, 7].map((d) => (
                 <option key={d} value={d}>{d} días</option>
               ))}
             </select>

@@ -4,6 +4,16 @@ import type { Stock, MovimientoStock } from '../types'
 export const getStock = () =>
   apiClient.get<Stock[]>('/stock')
 
+export interface CoberturaIngrediente {
+  ingrediente_id: number
+  demanda_diaria: number
+  dias_actual: number | null
+  dias_minimo: number | null
+}
+
+export const getCoberturaStock = () =>
+  apiClient.get<{ cobertura: CoberturaIngrediente[] }>('/stock/cobertura')
+
 export const getStockAlertas = () =>
   apiClient.get<Stock[]>('/stock/alertas')
 

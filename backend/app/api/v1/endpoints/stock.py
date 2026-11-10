@@ -75,6 +75,64 @@ def listar_stock(db: Session = Depends(get_db)):
     return db.query(Stock).all()
 
 
+@router.get("/cobertura")
+def cobertura_stock(db: Session = Depends(get_db)):
+    """
+    Devuelve, por ingrediente, para cuantos dias alcanza el stock actual y
+    el stock minimo, basado en la demanda diaria promedio (ventas × recetas).
+
+    Respuesta: lista de {ingrediente_id, demanda_diaria, dias_actual, dias_minimo}
+    """
+    # Demanda diaria por producto (ventas pagadas últimos 28 días / días con ventas)
+    demanda_prod_sql = text("""
+        SELECT dv.producto_id,
+               SUM(dv.cantidad) / GREATEST(COUNT(DISTINCT DATE(v.fecha)), 1) AS uds_dia
+          FROM detalles_venta dv
+          JOIN ventas v ON v.id = dv.venta_id
+         WHERE dv.precio_unitario > 0
+           AND v.fecha >= DATE_SUB(NOW(), INTERVAL 28 DAY)
+         GROUP BY dv.producto_id
+    """)
+    demanda_rows = db.execute(demanda_prod_sql).fetchall()
+    demanda_por_producto = {int(r[0]): float(r[1]) for r in demanda_rows}
+
+    # Recetas: calcular demanda diaria por ingrediente
+    recetas_sql = text("""
+        SELECT rd.producto_id, rd.ingrediente_id, rd.cantidad
+          FROM recetas_detalle rd
+          JOIN ingredientes i ON i.id = rd.ingrediente_id
+         WHERE i.activo = 1
+    """)
+    recetas = db.execute(recetas_sql).fetchall()
+
+    demanda_diaria: dict[int, float] = {}
+    for prod_id, ing_id, cant in recetas:
+        uds_dia = demanda_por_producto.get(int(prod_id), 0.0)
+        demanda_diaria[int(ing_id)] = demanda_diaria.get(int(ing_id), 0.0) + float(cant) * uds_dia
+
+    # Cargar stock + minimo
+    stock_rows = db.execute(
+        text("SELECT ingrediente_id, cantidad_disponible, cantidad_minima FROM stock")
+    ).fetchall()
+
+    def _dias(cantidad: float, dem: float) -> float | None:
+        if dem <= 0:
+            return None  # Sin consumo histórico → no se puede estimar
+        return round(cantidad / dem, 1)
+
+    resultado = []
+    for ing_id, disponible, minimo in stock_rows:
+        dem = demanda_diaria.get(int(ing_id), 0.0)
+        resultado.append({
+            "ingrediente_id":  int(ing_id),
+            "demanda_diaria":  round(dem, 4),
+            "dias_actual":     _dias(float(disponible), dem),
+            "dias_minimo":     _dias(float(minimo), dem),
+        })
+
+    return {"cobertura": resultado}
+
+
 @router.get("/alertas", response_model=list[StockOut])
 def stock_bajo_minimo(db: Session = Depends(get_db)):
     """Devuelve ingredientes cuyo stock está por debajo del mínimo configurado."""

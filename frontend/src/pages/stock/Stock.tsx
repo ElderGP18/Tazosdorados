@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Plus, History, ArrowUpCircle, ArrowDownCircle, Package, AlertTriangle, Settings2 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { getStock, registrarMovimiento, getMovimientos, actualizarMinimos } from '../../api/stock'
+import { getStock, registrarMovimiento, getMovimientos, actualizarMinimos, getCoberturaStock, type CoberturaIngrediente } from '../../api/stock'
 import { getIngredientes } from '../../api/ingredientes'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Modal } from '../../components/ui/Modal'
@@ -14,6 +14,7 @@ import type { Stock as StockType, MovimientoStock, Ingrediente } from '../../typ
 export default function Stock() {
   const [stock, setStock] = useState<StockType[]>([])
   const [ingredientes, setIngredientes] = useState<Ingrediente[]>([])
+  const [cobertura, setCobertura] = useState<Record<number, CoberturaIngrediente>>({})
   const [movimientos, setMovimientos] = useState<MovimientoStock[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -40,9 +41,14 @@ export default function Stock() {
   const load = async () => {
     setLoading(true)
     try {
-      const [s, i] = await Promise.all([getStock(), getIngredientes()])
+      const [s, i, c] = await Promise.all([getStock(), getIngredientes(), getCoberturaStock().catch(() => null)])
       setStock(s.data)
       setIngredientes(i.data)
+      if (c?.data?.cobertura) {
+        const map: Record<number, CoberturaIngrediente> = {}
+        c.data.cobertura.forEach((x) => { map[x.ingrediente_id] = x })
+        setCobertura(map)
+      }
     } finally {
       setLoading(false)
     }
@@ -227,9 +233,21 @@ export default function Stock() {
                   }`}>
                     {Number(s.cantidad_disponible).toFixed(2)}
                     <span className="text-sm font-normal text-gray-400 ml-1">{unidad}</span>
+                    {cobertura[s.ingrediente_id]?.dias_actual != null && (
+                      <span className={`text-xs font-semibold ml-2 ${
+                        (cobertura[s.ingrediente_id].dias_actual ?? 0) < 3 ? 'text-red-600' :
+                        (cobertura[s.ingrediente_id].dias_actual ?? 0) < 7 ? 'text-yellow-600' :
+                        'text-green-600'
+                      }`}>
+                        ≈ {cobertura[s.ingrediente_id].dias_actual} {cobertura[s.ingrediente_id].dias_actual === 1 ? 'día' : 'días'}
+                      </span>
+                    )}
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5">
                     Mínimo: {Number(s.cantidad_minima).toFixed(2)} {unidad}
+                    {cobertura[s.ingrediente_id]?.dias_minimo != null && (
+                      <span className="text-gray-500"> · cubre {cobertura[s.ingrediente_id].dias_minimo} {cobertura[s.ingrediente_id].dias_minimo === 1 ? 'día' : 'días'}</span>
+                    )}
                   </p>
                 </div>
 

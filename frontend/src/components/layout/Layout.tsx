@@ -45,8 +45,10 @@ export function Layout() {
       >
         <Header onMenuToggle={() => setMobileOpen((o) => !o)} />
         <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
-          {/* key = pathname → relanzamos la animación en cada navegación */}
-          <div key={location.pathname} className="animate-fade-in-up">
+          {/* key = pathname → relanzamos la animación en cada navegación.
+             Importante: solo opacity, nunca transform — un transform en el
+             ancestor rompe position: fixed de los modales. */}
+          <div key={location.pathname} className="animate-fade-in">
             <Outlet />
           </div>
         </main>
