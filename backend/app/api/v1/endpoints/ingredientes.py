@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -49,3 +50,37 @@ def actualizar_ingrediente(
     db.commit()
     db.refresh(ing)
     return ing
+
+
+@router.post("/desactivar-sin-receta")
+def desactivar_sin_receta(db: Session = Depends(get_db)):
+    """
+    Desactiva (activo=0) todos los ingredientes que NO estan en ninguna receta.
+    No borra registros — solo los desactiva para que dejen de aparecer en
+    Stock, Compras y Merma. Se pueden reactivar manualmente si hace falta.
+    """
+    # Buscar ingredientes activos que no estan en receta
+    rows = db.execute(text("""
+        SELECT i.id, i.nombre
+          FROM ingredientes i
+         WHERE i.activo = 1
+           AND NOT EXISTS (
+               SELECT 1 FROM recetas_detalle rd
+                WHERE rd.ingrediente_id = i.id
+           )
+    """)).fetchall()
+
+    desactivados = [{"id": r[0], "nombre": r[1]} for r in rows]
+
+    if desactivados:
+        ids = [d["id"] for d in desactivados]
+        db.execute(
+            text("UPDATE ingredientes SET activo = 0 WHERE id IN :ids"),
+            {"ids": tuple(ids)},
+        )
+        db.commit()
+
+    return {
+        "desactivados": len(desactivados),
+        "ingredientes": desactivados,
+    }
