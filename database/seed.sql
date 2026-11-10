@@ -17,13 +17,13 @@ INSERT IGNORE INTO `roles` (`nombre`, `descripcion`) VALUES
 -- ------------------------------------------------------------
 -- USUARIO ADMINISTRADOR
 -- Password: Admin1234!
--- Hash generado con bcrypt (passlib rounds=12)
+-- Hash generado con bcrypt rounds=12 (verificado contra Admin1234!)
 -- ------------------------------------------------------------
 INSERT IGNORE INTO `usuarios` (`nombre`, `email`, `password_hash`, `rol_id`) VALUES
   (
     'Administrador',
     'admin@tazos.com',
-    '$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW',
+    '$2b$12$QaJfrNq9ON4s3TaT6KASO.iLTzXwkunhhM45yQrhPZ7KGhj2/x6MS',
     (SELECT `id` FROM `roles` WHERE `nombre` = 'admin')
   );
 
