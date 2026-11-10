@@ -72,7 +72,14 @@ def verificar_stock_venta(items: list[ItemVenta], db: Session = Depends(get_db))
 
 @router.get("/", response_model=list[StockOut])
 def listar_stock(db: Session = Depends(get_db)):
-    return db.query(Stock).all()
+    """Lista el stock solo de ingredientes activos (no muestra huerfanos)."""
+    from app.models.ingrediente import Ingrediente
+    return (
+        db.query(Stock)
+        .join(Ingrediente, Ingrediente.id == Stock.ingrediente_id)
+        .filter(Ingrediente.activo == True)
+        .all()
+    )
 
 
 @router.get("/cobertura")
@@ -140,8 +147,15 @@ def cobertura_stock(db: Session = Depends(get_db)):
 
 @router.get("/alertas", response_model=list[StockOut])
 def stock_bajo_minimo(db: Session = Depends(get_db)):
-    """Devuelve ingredientes cuyo stock está por debajo del mínimo configurado."""
-    return db.query(Stock).filter(Stock.cantidad_disponible < Stock.cantidad_minima).all()
+    """Devuelve ingredientes activos cuyo stock está por debajo del mínimo."""
+    from app.models.ingrediente import Ingrediente
+    return (
+        db.query(Stock)
+        .join(Ingrediente, Ingrediente.id == Stock.ingrediente_id)
+        .filter(Ingrediente.activo == True)
+        .filter(Stock.cantidad_disponible < Stock.cantidad_minima)
+        .all()
+    )
 
 
 @router.post("/movimientos", response_model=MovimientoStockOut, status_code=status.HTTP_201_CREATED)
